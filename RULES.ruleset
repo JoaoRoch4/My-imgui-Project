@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RuleSet Name="Copy of Microsoft All Rules" Description="This rule set contains all rules. Running this rule set may result in a large number of warnings being reported. Use this rule set to get a comprehensive picture of all issues in your code. This can help you decide which of the more focused rule sets are most appropriate to run for your projects." ToolsVersion="18.0">
+  <IncludeAll Action="Warning" />
+  <Rules AnalyzerId="Microsoft.Analyzers.NativeCodeAnalysis" RuleNamespace="Microsoft.Rules.Native">
+    <Rule Id="C26429" Action="None" />
+    <Rule Id="C26431" Action="None" />
+    <Rule Id="C26445" Action="None" />
+    <Rule Id="C26446" Action="None" />
+    <Rule Id="C26448" Action="None" />
+    <Rule Id="C26449" Action="None" />
+    <Rule Id="C26458" Action="None" />
+    <Rule Id="C26459" Action="None" />
+    <Rule Id="C26821" Action="None" />
+  </Rules>
+</RuleSet>

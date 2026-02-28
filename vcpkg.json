@@ -1,0 +1,74 @@
+{
+  "name": "imguiapp",
+  "version": "0.0.1",
+  "dependencies": [
+    
+    {
+      "name": "freetype",
+      "features": [
+        "brotli",
+        "bzip2",
+        "error-strings",
+        "png",
+        "subpixel-rendering",
+        "zlib"
+      ]
+    },
+    {
+      "name": "imageinfo",
+      "features": [
+        "tools"
+      ]
+    },
+    {
+      "name": "nlohmann-json",
+      "features": [
+        "diagnostics"
+      ]
+    },
+    {
+      "name": "opencv",
+      "features": [
+        "png"
+      ]
+    },
+    {
+      "name": "opencv4",
+      "features": [
+        "png"
+      ]
+    },
+    {
+      "name": "reflectcpp",
+      "features": [
+        "csv",
+        "toml",
+        "xml",
+        "yaml"
+      ]
+    },
+    {
+      "name": "sdl3",
+      "features": [
+        "alsa",
+        "vulkan"
+      ]
+    },
+    {
+      "name": "sdl3-image",
+      "features": [
+        "jpeg",
+        "png",
+        "tiff",
+        "webp"
+      ]
+    },
+    "sdl3-shadercross",
+    {
+      "name": "sdl3-ttf",
+      "features": [
+        "svg"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,515 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="external">
+      <UniqueIdentifier>{4899dbf7-20a9-4640-9053-62675e762a2e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\pluto">
+      <UniqueIdentifier>{659d7f92-b7d9-4712-bef8-560723219d4a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\implot">
+      <UniqueIdentifier>{821f6366-cdb8-45cd-b31f-efaf525b945a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\stb">
+      <UniqueIdentifier>{1169b29d-bd63-411d-9fdd-d767c24f8894}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\implot\inc">
+      <UniqueIdentifier>{9dca0856-82c7-4cb0-ad16-b8c098a3d014}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\implot\src">
+      <UniqueIdentifier>{22d24480-1fec-40c5-bbed-bdf96fddb196}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\stb\inc">
+      <UniqueIdentifier>{d69fb697-929d-40a7-b739-81bd7a92955e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\stb\src">
+      <UniqueIdentifier>{e91272ca-0290-4759-a499-082abe79e121}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\pluto\plutovg">
+      <UniqueIdentifier>{046dbafc-98d1-42b4-b3bf-34586e9b08c2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\pluto\plutosvg">
+      <UniqueIdentifier>{8c314b2a-63a4-46fc-8ca6-4f1d527d4d5c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\pluto\plutovg\inc">
+      <UniqueIdentifier>{1353b7b3-fa1d-492a-8dbe-96cda0a8cbd1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\pluto\plutovg\src">
+      <UniqueIdentifier>{c6cd9dc6-7a99-4d69-a4c8-5a541d4bc769}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Local">
+      <UniqueIdentifier>{76a3e894-e3e3-4d07-b3bd-072a9e8f55f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Local\main">
+      <UniqueIdentifier>{78da1396-87ce-40e7-aa2d-308632ff6399}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Local\main\pch">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Local\src">
+      <UniqueIdentifier>{94a7676c-be28-443f-a231-68575b0e787e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Local\include">
+      <UniqueIdentifier>{9c8c8e63-f139-490e-95ed-3c9b8cdf5ef6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\imgui-viewports">
+      <UniqueIdentifier>{1f9d987e-08de-43f9-aff1-6523a11069b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\imgui-viewports\inc">
+      <UniqueIdentifier>{68e57ead-41e5-44df-938d-70ccfe535fb4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\imgui-viewports\src">
+      <UniqueIdentifier>{155d10c6-6bde-4993-a402-408e58a293b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\imgui-viewports\backends">
+      <UniqueIdentifier>{d9cef56c-89fa-4209-824f-ab41fad485d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\imgui-viewports\backends\inc">
+      <UniqueIdentifier>{86461d2c-b05c-4bbe-8987-b50038748ee4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\imgui-viewports\backends\src">
+      <UniqueIdentifier>{50ff8e64-26d2-4be1-a89a-9610690a8723}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot">
+      <UniqueIdentifier>{fb64be65-7aea-4c18-8fce-194001f64c82}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\inc">
+      <UniqueIdentifier>{c8890e6c-86b4-47df-b1ee-865ba3a2e775}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\src">
+      <UniqueIdentifier>{c8f4a3d8-7255-40c8-bed9-27f21d042bab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\test engine">
+      <UniqueIdentifier>{9500cf0b-51a4-401d-b340-90cbe400f23d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\test engine\inc">
+      <UniqueIdentifier>{90ee6cce-766f-4096-89c5-8932de092bb8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\test engine\src">
+      <UniqueIdentifier>{02c2f49a-6182-4e1b-970d-81ac2fc49ffb}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="vcpkg-configuration.json" />
+    <None Include="cpp.hint" />
+    <None Include="vcpkg.json" />
+    <None Include=".gitignore" />
+    <None Include=".gitattributes" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <Filter>Local\main\pch</Filter>
+    </ClCompile>
+    <ClCompile Include="Main.cpp">
+      <Filter>Local\main</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGuiContext_Wrapper.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="WindowsConsole.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanContext_Wrapper.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="SystemInfo.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="StyleEditor.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="MyResult.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="MicaTheme.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Menubar.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Memory.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Image.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Fontscale.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="FontManager.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Console.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="App.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\stb\stb_vorbis.c">
+      <Filter>external\stb\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-blend.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-canvas.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-font.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-ft-math.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-ft-raster.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-ft-stroker.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-matrix.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-paint.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-path.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-rasterize.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutovg\source\plutovg-surface.c">
+      <Filter>external\pluto\plutovg\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\plutosvg\source\plutosvg.c">
+      <Filter>external\pluto\plutosvg</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\imgui_demo.cpp">
+      <Filter>external\imgui-viewports\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\imgui_draw.cpp">
+      <Filter>external\imgui-viewports\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\imgui_tables.cpp">
+      <Filter>external\imgui-viewports\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\imgui_widgets.cpp">
+      <Filter>external\imgui-viewports\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\imgui.cpp">
+      <Filter>external\imgui-viewports\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\backends\imgui_impl_sdl3.cpp">
+      <Filter>external\imgui-viewports\backends\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\backends\imgui_impl_vulkan.cpp">
+      <Filter>external\imgui-viewports\backends\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\implot\implot_items.cpp">
+      <Filter>external\implot\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\implot\implot.cpp">
+      <Filter>external\implot\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\implot\implot_demo.cpp">
+      <Filter>external\implot\src</Filter>
+    </ClCompile>
+    <ClCompile Include="TestEngineWrapper.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_context.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_coroutine.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_engine.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_perftool.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_utils.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui-docking\misc\freetype\imgui_freetype.cpp">
+      <Filter>external\imgui-viewports\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_test_suite.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_core.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_docking.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_inputs.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_nav.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_perf.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_tables.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_viewports.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_widgets.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_widgets_inputtext.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_capture_tool.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_exporters.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_ui.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\imgui_test_engine\shared\imgui_app.cpp">
+      <Filter>external\test engine\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.hpp">
+      <Filter>Local\main\pch</Filter>
+    </ClInclude>
+    <ClInclude Include="main.hpp">
+      <Filter>Local\main</Filter>
+    </ClInclude>
+    <ClInclude Include="StyleEditor.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="SystemInfo.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanContext_Wrapper.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="WindowsConsole.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="EmojiDebugHelper.h">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="MicaTheme.h">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="App.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Appsettings.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Console.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="FontManager.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Fontscale.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Image.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Memory.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Menubar.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="MyResult.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="external\implot\implot.h">
+      <Filter>external\implot\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\implot\implot_internal.h">
+      <Filter>external\implot\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_c_lexer.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_connected_components.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_divide.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_ds.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_dxt.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_easy_font.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_herringbone_wang_tile.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_hexwave.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_image.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_image_resize2.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_image_write.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_include.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_leakcheck.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_perlin.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_rect_pack.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_sprintf.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_textedit.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_tilemap_editor.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_truetype.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\stb\stb_voxel_render.h">
+      <Filter>external\stb\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\include\plutovg.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-ft-math.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-ft-stroker.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-ft-raster.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-private.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-stb-image.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-stb-truetype.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-stb-image-write.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-utils.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-ft-types.h">
+      <Filter>external\pluto\plutovg\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutosvg\source\plutosvg.h">
+      <Filter>external\pluto\plutosvg</Filter>
+    </ClInclude>
+    <ClInclude Include="external\plutosvg\source\plutosvg-ft.h">
+      <Filter>external\pluto\plutosvg</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGuiContext_Wrapper.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\imconfig.h">
+      <Filter>external\imgui-viewports\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\imgui.h">
+      <Filter>external\imgui-viewports\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\imgui_internal.h">
+      <Filter>external\imgui-viewports\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\imstb_rectpack.h">
+      <Filter>external\imgui-viewports\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\imstb_textedit.h">
+      <Filter>external\imgui-viewports\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\imstb_truetype.h">
+      <Filter>external\imgui-viewports\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\backends\imgui_impl_null.h">
+      <Filter>external\imgui-viewports\backends\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\backends\imgui_impl_sdl3.h">
+      <Filter>external\imgui-viewports\backends\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\backends\imgui_impl_vulkan.h">
+      <Filter>external\imgui-viewports\backends\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_context.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_coroutine.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_engine.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_perftool.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_utils.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui-docking\misc\freetype\imgui_freetype.h">
+      <Filter>external\imgui-viewports\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_suite\imgui_test_suite.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_suite\imgui_test_suite_imconfig.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_capture_tool.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_exporters.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_imconfig.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_internal.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\imgui_te_ui.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\thirdparty\Str\Str.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\imgui_test_engine\thirdparty\stb\imstb_image_write.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\imgui_test_engine\shared\imgui_app.h">
+      <Filter>external\test engine\inc</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
