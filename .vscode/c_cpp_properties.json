@@ -2,20 +2,22 @@
     "configurations": [
         {
             "name": "Win32",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "${vcpkgRoot}/x64-windows/include"
-            ],
             "defines": [
-                "_DEBUG",
-                "UNICODE",
-                "_UNICODE"
+                "DEBUG;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_UTF8;WIN32;_WIN32;%(PreprocessorDefinitions)"
             ],
             "windowsSdkVersion": "10.0.26100.0",
             "compilerPath": "C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.51.36014/bin/Hostx64/x64/cl.exe",
             "cStandard": "c23",
             "cppStandard": "c++26",
-            "intelliSenseMode": "windows-msvc-x64"
+            "intelliSenseMode": "windows-msvc-x64",
+            "compilerArgs": [
+                "/JMC /permissive- /Yu\"pch.hpp\" /ifcOutput \"My imgui Project\\x64\\Debug\\\" /GS /Zc:rvalueCast /W3 /Gy /FAu /Zc:wchar_t /Qspectre /ZI /Gm- /Od /sdl /Fd\"My imgui Project\\x64\\Debug\\vc145.pdb\" /Zc:inline /fp:precise /D \"DEBUG\" /D \"_DEBUG\" /D \"_CONSOLE\" /D \"_CRT_SECURE_NO_WARNINGS\" /D \"_UTF8\" /D \"WIN32\" /D \"_WIN32\" /D \"_UNICODE\" /D \"UNICODE\" /errorReport:prompt /QIntel-jcc-erratum /WX- /Zc:forScope /RTC1 /std:clatest /GR /Gd /MDd /openmp /std:c++latest /FC /Fa\"My imgui Project\\x64\\Debug\\\" /EHsc /nologo /Fo\"My imgui Project\\x64\\Debug\\\" /FAcs /Fp\"My imgui Project\\x64\\Debug\\My imgui Project.pch\" /diagnostics:column "
+            ],
+            "browse": {
+                "path": [
+                    "${workspaceFolder}\\external\\plutovg\\include;${workspaceFolder}\\external\\implot;${workspaceFolder}\\external\\imgui-docking\\backends;${workspaceFolder}\\external\\plutovg\\source;${workspaceFolder}\\external\\plutovg\\include;${workspaceFolder}\\external\\stb;${workspaceFolder}\\external\\imgui_test_engine\\imgui_test_suite;${workspaceFolder}\\external\\imgui_test_engine\\shared;${workspaceFolder}\\external\\imgui_test_engine\\imgui_test_engine\\thirdparty\\Str;${workspaceFolder}\\external\\imgui_test_engine\\imgui_test_engine\\thirdparty\\stb;${workspaceFolder}\\external\\imgui_test_engine\\imgui_test_engine\\;${workspaceFolder}\\external\\imgui_test_engine\\;${workspaceFolder}\\external\\imgui_test_engine\\app_minimal\\;${workspaceFolder}\\external\\imgui-docking\\;${workspaceFolder}\\external\\imgui-docking\\misc\\cpp\\;${workspaceFolder}\\external\\imgui-docking\\misc\\freetype\\;${workspaceFolder}\\external\\plutovg\\include;${workspaceFolder}\\external\\plutovg\\source;${workspaceFolder}\\external\\plutosvg\\source;C:\\VulkanSDK\\1.4.341.1\\\\Include\\;"
+                ]
+            }
         }
     ],
     "version": 4

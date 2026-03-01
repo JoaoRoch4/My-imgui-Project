@@ -43,9 +43,10 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>NotSet</CharacterSet>
     <MSVCPreviewEnabled>true</MSVCPreviewEnabled>
     <SpectreMitigation>Spectre</SpectreMitigation>
+    <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -74,7 +75,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\external\external\plutovg\\source;$(ProjectDir)\external\external\plutovg\include;$(ProjectDir)\external\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\#\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\external\external\plutovg\\source;$(ProjectDir)\external\external\plutovg\include;$(ProjectDir)\external\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ExternalIncludePath)</ExternalIncludePath>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg">
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
@@ -115,10 +116,10 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>DEBUG;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_UTF8;WIN32;_WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>DEBUG;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_UTF8;WIN32;_WIN32;UNICODE;_UNICODE;_MBCS ;CP_UTF8;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpplatest</LanguageStandard>
-      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.hpp</PrecompiledHeaderFile>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
@@ -128,6 +129,10 @@
       <IntelJCCErratum>true</IntelJCCErratum>
       <AssemblerOutput>All</AssemblerOutput>
       <UseUnicodeForAssemblerListing>true</UseUnicodeForAssemblerListing>
+      <AdditionalOptions>/CP_UTF8 %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <StructMemberAlignment>16Bytes</StructMemberAlignment>
+      <EnableVectorLength>VectorLength512</EnableVectorLength>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -139,7 +144,12 @@
       <AssemblyDebug>true</AssemblyDebug>
       <LargeAddressAware>true</LargeAddressAware>
       <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
+      <IgnoreSpecificDefaultLibraries>SDL2-static.lib;SDL.lib;SDL2-staticd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <AdditionalDependencies>SDL3-static.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <Manifest>
+      <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -324,7 +334,6 @@
     <ClInclude Include="Appsettings.hpp" />
     <ClInclude Include="Console.hpp" />
     <ClInclude Include="EmojiDebugHelper.h" />
-    <ClInclude Include="external\imgui-docking\backends\imgui_impl_null.h" />
     <ClInclude Include="external\imgui-docking\backends\imgui_impl_sdl3.h" />
     <ClInclude Include="external\imgui-docking\backends\imgui_impl_vulkan.h" />
     <ClInclude Include="external\imgui-docking\imconfig.h" />

@@ -28,16 +28,16 @@
   * @param loc  Struct preenchida pelas macros via __FILE__, __LINE__, __func__.
   * @return     String formatada com o prefixo de localização.
   */
-static std::string format_loc(const MyResult::SourceLocation& loc) {
+static std::wstring format_locW(const MyResult::SourceLocation& loc) {
     // Monta o prefixo concatenando os três campos do struct.
     // std::to_string converte o inteiro `line` para texto.
-    return std::string("[")          // abre colchete
+    return std::wstring(L"[")          // abre colchete
         + loc.file                  // caminho do arquivo fonte
-        + ":"                       // separador
-        + std::to_string(loc.line)  // número da linha
-        + " in "                    // separador legível
+        + L":"                       // separador
+        + std::to_wstring(loc.line)  // número da linha
+        + L" in "                    // separador legível
         + loc.function              // nome da função/método
-        + "] ";                     // fecha colchete + espaço antes da msg
+        + L"] ";                     // fecha colchete + espaço antes da msg
 }
 
 // ====================================================================
@@ -56,7 +56,7 @@ static std::string format_loc(const MyResult::SourceLocation& loc) {
  * @param exit  Se true, chama std::exit(EXIT_FAILURE) após exibir a msg.
  */
 MyResult::MyResult(bool bOk,
-    std::optional<std::string> msg,
+    std::optional<std::wstring> msg,
     ErrorType type,
     bool exit)
     : success(bOk)           // armazena se a operação foi bem-sucedida
@@ -96,43 +96,43 @@ const MyResult MyResult::ok = MyResult(true); // success=true, demais campos em 
  * Após o switch, se @c should_exit for true, chama std::exit para
  * terminar o processo com código de falha.
  */
-void MyResult::handle_error() {
+void MyResult::handle_errorW() {
     // Extrai a mensagem; se nullopt, usa string vazia
-    const std::string msg = message.value_or("");
+    const std::wstring msg = message.value_or(L"");
 
     switch(error_type) {
         // ---- MessageBox (Windows) ----------------------------------
 
         case ErrorType::MsgBox_Error:
             // Exibe caixa de diálogo com ícone de erro (X vermelho)
-            MessageBoxA(nullptr, msg.c_str(), "Erro", MB_OK | MB_ICONERROR);
+            MessageBox(nullptr, msg.c_str(), L"Erro", MB_OK | MB_ICONERROR);
             break;
 
         case ErrorType::MsgBox_Warning:
             // Exibe caixa de diálogo com ícone de aviso (triângulo amarelo)
-            MessageBoxA(nullptr, msg.c_str(), "Aviso", MB_OK | MB_ICONWARNING);
+            MessageBox(nullptr, msg.c_str(), L"Aviso", MB_OK | MB_ICONWARNING);
             break;
 
         case ErrorType::MsgBox_Ok:
             // Exibe caixa de diálogo informativa (balão azul)
-            MessageBoxA(nullptr, msg.c_str(), "Info", MB_OK | MB_ICONINFORMATION);
+            MessageBox(nullptr, msg.c_str(), L"Info", MB_OK | MB_ICONINFORMATION);
             break;
 
             // ---- Console (ANSI escape codes) ---------------------------
 
         case ErrorType::MsgCls_Error:
             // Imprime em vermelho negrito no stderr
-            std::cerr << CLS_RED << "[ERRO] " << msg << CLS_RESET << "\n";
+            std::wcerr << CLS_RED << L"[ERRO] " << msg << CLS_RESET << L"\n";
             break;
 
         case ErrorType::MsgCls_Warning:
             // Imprime em amarelo negrito no stdout
-            std::cout << CLS_YELLOW << "[AVISO] " << msg << CLS_RESET << "\n";
+            std::wcout << CLS_YELLOW << L"[AVISO] " << msg << CLS_RESET << L"\n";
             break;
 
         case ErrorType::MsgCls_Normal:
             // Imprime sem cor especial (reset = branco/padrão do terminal)
-            std::cout << CLS_WHITE << msg << CLS_RESET << "\n";
+            std::wcout << CLS_WHITE << msg << CLS_RESET << L"\n";
             break;
 
         default:
@@ -153,9 +153,9 @@ void MyResult::handle_error() {
  * @brief Exibe MessageBox de erro e retorna MyResult com success=false.
  * @param msg Texto exibido na caixa de diálogo.
  */
-MyResult MyResult::msgbox::error(const std::string& msg) {
+MyResult MyResult::msgbox::errorW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgBox_Error, false); // monta o objeto
-    r.handle_error();  // exibe imediatamente
+    r.handle_errorW();  // exibe imediatamente
     return r;          // retorna para que o chamador possa verificar com if()
 }
 
@@ -164,9 +164,9 @@ MyResult MyResult::msgbox::error(const std::string& msg) {
  * @param msg Texto exibido na caixa de diálogo.
  * @note  Não retorna — std::exit é chamado dentro de handle_error.
  */
-MyResult MyResult::msgbox::error_end(const std::string& msg) {
+MyResult MyResult::msgbox::error_endW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgBox_Error, true); // should_exit=true
-    r.handle_error();
+    r.handle_errorW();
     return r; // nunca alcançado, mas necessário para o compilador
 }
 
@@ -174,9 +174,9 @@ MyResult MyResult::msgbox::error_end(const std::string& msg) {
  * @brief Exibe MessageBox de aviso e retorna MyResult com success=false.
  * @param msg Texto do aviso.
  */
-MyResult MyResult::msgbox::warning(const std::string& msg) {
+MyResult MyResult::msgbox::warningW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgBox_Warning, false);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -184,9 +184,9 @@ MyResult MyResult::msgbox::warning(const std::string& msg) {
  * @brief Exibe MessageBox de aviso e encerra o processo.
  * @param msg Texto do aviso.
  */
-MyResult MyResult::msgbox::warning_end(const std::string& msg) {
+MyResult MyResult::msgbox::warning_endW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgBox_Warning, true);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -194,9 +194,9 @@ MyResult MyResult::msgbox::warning_end(const std::string& msg) {
  * @brief Exibe MessageBox informativa e retorna MyResult com success=true.
  * @param msg Texto informativo.
  */
-MyResult MyResult::msgbox::normal(const std::string& msg) {
+MyResult MyResult::msgbox::normalW(const std::wstring& msg) {
     MyResult r(true, msg, ErrorType::MsgBox_Ok, false); // success=true pois é info
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -214,12 +214,12 @@ MyResult MyResult::msgbox::normal(const std::string& msg) {
  * @param msg Texto do erro.
  * @param loc Localização do ponto de chamada (preenchida pela macro).
  */
-MyResult MyResult::msgbox::error(const std::string& msg, const SourceLocation& loc) {
+MyResult MyResult::msgbox::errorW(const std::wstring& msg, const SourceLocation& loc) {
     // Junta o prefixo "[arquivo:linha in função] " com a mensagem do usuário
-    const std::string full = format_loc(loc) + msg;
+    const std::wstring full = format_locW(loc) + msg;
 
     MyResult r(false, full, ErrorType::MsgBox_Error, false);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -228,10 +228,10 @@ MyResult MyResult::msgbox::error(const std::string& msg, const SourceLocation& l
  * @param msg Texto do erro.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgbox::error_end(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg; // prefixo + mensagem
+MyResult MyResult::msgbox::error_endW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg; // prefixo + mensagem
     MyResult r(false, full, ErrorType::MsgBox_Error, true); // should_exit=true
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -240,10 +240,10 @@ MyResult MyResult::msgbox::error_end(const std::string& msg, const SourceLocatio
  * @param msg Texto do aviso.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgbox::warning(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg;
+MyResult MyResult::msgbox::warningW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg;
     MyResult r(false, full, ErrorType::MsgBox_Warning, false);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -252,10 +252,10 @@ MyResult MyResult::msgbox::warning(const std::string& msg, const SourceLocation&
  * @param msg Texto do aviso.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgbox::warning_end(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg;
+MyResult MyResult::msgbox::warning_endW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg;
     MyResult r(false, full, ErrorType::MsgBox_Warning, true);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -264,10 +264,10 @@ MyResult MyResult::msgbox::warning_end(const std::string& msg, const SourceLocat
  * @param msg Texto informativo.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgbox::normal(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg;
+MyResult MyResult::msgbox::normalW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg;
     MyResult r(true, full, ErrorType::MsgBox_Ok, false); // success=true (info)
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -279,9 +279,9 @@ MyResult MyResult::msgbox::normal(const std::string& msg, const SourceLocation& 
  * @brief Imprime erro no console (vermelho) e retorna success=false.
  * @param msg Texto do erro.
  */
-MyResult MyResult::msgcls::error(const std::string& msg) {
+MyResult MyResult::msgcls::errorW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgCls_Error, false);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -289,9 +289,9 @@ MyResult MyResult::msgcls::error(const std::string& msg) {
  * @brief Imprime erro no console e encerra o processo.
  * @param msg Texto do erro.
  */
-MyResult MyResult::msgcls::error_end(const std::string& msg) {
+MyResult MyResult::msgcls::error_endW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgCls_Error, true);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -299,9 +299,9 @@ MyResult MyResult::msgcls::error_end(const std::string& msg) {
  * @brief Imprime aviso no console (amarelo) e retorna success=false.
  * @param msg Texto do aviso.
  */
-MyResult MyResult::msgcls::warning(const std::string& msg) {
+MyResult MyResult::msgcls::warningW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgCls_Warning, false);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -309,9 +309,9 @@ MyResult MyResult::msgcls::warning(const std::string& msg) {
  * @brief Imprime aviso no console e encerra o processo.
  * @param msg Texto do aviso.
  */
-MyResult MyResult::msgcls::warning_end(const std::string& msg) {
+MyResult MyResult::msgcls::warning_endW(const std::wstring& msg) {
     MyResult r(false, msg, ErrorType::MsgCls_Warning, true);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -319,9 +319,9 @@ MyResult MyResult::msgcls::warning_end(const std::string& msg) {
  * @brief Imprime mensagem normal no console e retorna success=true.
  * @param msg Texto informativo.
  */
-MyResult MyResult::msgcls::normal(const std::string& msg) {
+MyResult MyResult::msgcls::normalW(const std::wstring& msg) {
     MyResult r(true, msg, ErrorType::MsgCls_Normal, false);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -340,10 +340,10 @@ MyResult MyResult::msgcls::normal(const std::string& msg) {
  * @param msg Texto do erro.
  * @param loc Localização preenchida pela macro @c MR_CLS_ERR_LOC.
  */
-MyResult MyResult::msgcls::error(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg; // prefixo de localização + texto
+MyResult MyResult::msgcls::errorW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg; // prefixo de localização + texto
     MyResult r(false, full, ErrorType::MsgCls_Error, false);
-    r.handle_error(); // imprime "[ERRO] [arquivo:linha in func] mensagem"
+    r.handle_errorW(); // imprime "[ERRO] [arquivo:linha in func] mensagem"
     return r;
 }
 
@@ -352,10 +352,10 @@ MyResult MyResult::msgcls::error(const std::string& msg, const SourceLocation& l
  * @param msg Texto do erro.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgcls::error_end(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg;
+MyResult MyResult::msgcls::error_endW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg;
     MyResult r(false, full, ErrorType::MsgCls_Error, true); // should_exit=true
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -364,10 +364,10 @@ MyResult MyResult::msgcls::error_end(const std::string& msg, const SourceLocatio
  * @param msg Texto do aviso.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgcls::warning(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg;
+MyResult MyResult::msgcls::warningW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg;
     MyResult r(false, full, ErrorType::MsgCls_Warning, false);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -376,10 +376,10 @@ MyResult MyResult::msgcls::warning(const std::string& msg, const SourceLocation&
  * @param msg Texto do aviso.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgcls::warning_end(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg;
+MyResult MyResult::msgcls::warning_endW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg;
     MyResult r(false, full, ErrorType::MsgCls_Warning, true);
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }
 
@@ -388,9 +388,9 @@ MyResult MyResult::msgcls::warning_end(const std::string& msg, const SourceLocat
  * @param msg Texto informativo.
  * @param loc Localização do ponto de chamada.
  */
-MyResult MyResult::msgcls::normal(const std::string& msg, const SourceLocation& loc) {
-    const std::string full = format_loc(loc) + msg;
+MyResult MyResult::msgcls::normalW(const std::wstring& msg, const SourceLocation& loc) {
+    const std::wstring full = format_locW(loc) + msg;
     MyResult r(true, full, ErrorType::MsgCls_Normal, false); // success=true
-    r.handle_error();
+    r.handle_errorW();
     return r;
 }

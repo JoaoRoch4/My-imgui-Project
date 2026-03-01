@@ -2,7 +2,50 @@
   "name": "imguiapp",
   "version": "0.0.1",
   "dependencies": [
-    
+    "cppwinrt",
+    "cuda",
+    "directx-dxc",
+    "directx-headers",
+    "directx12-agility",
+    {
+      "name": "directxmesh",
+      "features": [
+        "spectre"
+      ]
+    },
+    "directxsdk",
+    {
+      "name": "directxtex",
+      "features": [
+        "spectre"
+      ]
+    },
+    {
+      "name": "directxtk",
+      "features": [
+        "spectre"
+      ]
+    },
+    {
+      "name": "directxtk12",
+      "features": [
+        "spectre"
+      ]
+    },
+    "dx",
+    {
+      "name": "dxut",
+      "features": [
+        "spectre"
+      ]
+    },
+    {
+      "name": "effects11",
+      "features": [
+        "spectre"
+      ]
+    },
+    "fmt",
     {
       "name": "freetype",
       "features": [
@@ -14,30 +57,17 @@
         "zlib"
       ]
     },
-    {
-      "name": "imageinfo",
-      "features": [
-        "tools"
-      ]
-    },
+    "gl3w",
+    "glfw3",
     {
       "name": "nlohmann-json",
       "features": [
         "diagnostics"
       ]
     },
-    {
-      "name": "opencv",
-      "features": [
-        "png"
-      ]
-    },
-    {
-      "name": "opencv4",
-      "features": [
-        "png"
-      ]
-    },
+    "opengl",
+    "opengl-registry",
+    "physx",
     {
       "name": "reflectcpp",
       "features": [
@@ -47,10 +77,25 @@
         "yaml"
       ]
     },
+    "rioki-glow",
+    {
+      "name": "rmlui",
+      "features": [
+        "lottie",
+        "lua",
+        "svg"
+      ]
+    },
+    "sdl1",
+    {
+      "name": "sdl2",
+      "features": [
+        "vulkan"
+      ]
+    },
     {
       "name": "sdl3",
       "features": [
-        "alsa",
         "vulkan"
       ]
     },
@@ -69,6 +114,28 @@
       "features": [
         "svg"
       ]
-    }
+    },
+    "termcolor",
+    {
+      "name": "uvatlas",
+      "features": [
+        "spectre"
+      ]
+    },
+    "vk-bootstrap",
+    "vulkan",
+    "vulkan-headers",
+    "vulkan-hpp",
+    {
+      "name": "vulkan-loader",
+      "features": [
+        "xcb",
+        "xlib"
+      ]
+    },
+    "vulkan-memory-allocator",
+    "vulkan-memory-allocator-hpp",
+    "vulkan-validationlayers"
+    
   ]
 }

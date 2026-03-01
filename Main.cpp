@@ -88,15 +88,21 @@ int main(int argc, char *argv[]) {
  * @param nCmdShow       Estado inicial da janela sugerido pelo shell.
  * @return EXIT_SUCCESS ou EXIT_FAILURE.
  */
-_Use_decl_annotations_ int WINAPI wWinMain(HINSTANCE,HINSTANCE,
-                                           LPWSTR, int) {
+_Use_decl_annotations_ INT  WINAPI  wWinMain(
+    _In_     HINSTANCE hInstance,
+    _In_opt_ HINSTANCE hPrevInstance,
+    _In_     LPWSTR    lpCmdLine,
+    _In_     int       nCmdShow) {
 
+	setlocale(LC_ALL, "utf-8"); // para suporte a caracteres acentuados no console
+	SetConsoleOutputCP(CP_UTF8); // para entrada UTF-8 no console
   // Console externo Win32 inicializado ANTES de App para capturar
   // todos os logs de inicialização do Vulkan, ImGui e FontManager.
   WindowsConsole::init(VK_F1); // F1 abre/fecha o console externo
 
-  App app;
-  MyResult result = app.run();
+    //App *app = Memory::Get()->GetApp(); // aloca App para que g_App seja válido durante run()
+   App app;                     // construtor: g_App = this
+  MyResult result = app.run(); // encapsula SDL_Init → loop → Close
 
   // Shutdown após run() — Close() já liberou todos os recursos.
   WindowsConsole::shutdown();

@@ -454,9 +454,6 @@
     <ClInclude Include="external\imgui-docking\imstb_truetype.h">
       <Filter>external\imgui-viewports\inc</Filter>
     </ClInclude>
-    <ClInclude Include="external\imgui-docking\backends\imgui_impl_null.h">
-      <Filter>external\imgui-viewports\backends\inc</Filter>
-    </ClInclude>
     <ClInclude Include="external\imgui-docking\backends\imgui_impl_sdl3.h">
       <Filter>external\imgui-viewports\backends\inc</Filter>
     </ClInclude>

@@ -224,6 +224,9 @@ private:
      * @brief Loop SDL + ImGui + Vulkan — roda até g_Done == true.
      */
     MyResult MainLoop();
+
+    MyResult GetDesktopResolution(int& horizontal, int& vertical);
+
 };
 
 // =============================================================================

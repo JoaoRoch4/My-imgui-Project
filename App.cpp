@@ -310,7 +310,7 @@ MyResult App::AllocGlobals(const ImVector<const char *> &extensions, int w,
                            int h, float scale) {
   // ---- 1. Memory::AllocAll — todos os subsistemas na ordem correta --------
 
-  if (!MR_IS_OK(Memory::Get()->AllocAll(extensions, g_Window, w, h, scale)))
+  if (!MR_IS_OK(Memory::Get()->AllocAll()))
     return MR_MSGBOX_ERR_END_LOC("Memory::AllocAll falhou.");
 
   // ---- 2. Aliases para os objetos geridos pelo Memory --------------------
@@ -696,6 +696,21 @@ MyResult App::MainLoop() {
   return MyResult::ok;
 }
 
+MyResult App::GetDesktopResolution(int& horizontal, int& vertical) {
+      RECT desktop;
+   // Get a handle to the desktop window
+   const HWND hDesktop = GetDesktopWindow();
+   // Get the size of screen to the variable desktop
+   GetWindowRect(hDesktop, &desktop);
+   // The top left corner will have coordinates (0,0)
+   // and the bottom right corner will have coordinates
+   // (horizontal, vertical)
+   horizontal = desktop.right;
+   vertical = desktop.bottom;
+
+   return MR_OK;
+}
+
 // =============================================================================
 // run
 // =============================================================================
@@ -705,23 +720,32 @@ MyResult App::MainLoop() {
  * Close() é SEMPRE chamado — mesmo que MainLoop retorne erro.
  */
 MyResult App::run() {
-  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
-    return MR_MSGBOX_ERR_END_LOC("Failed to initialize SDL: " +
-                                 std::string(SDL_GetError()));
+
+  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))  
+    MR_MSGBOX_ERR_END_LOC("Failed to initialize SDL: " +
+                                 StrToWStr(SDL_GetError()));
+                                 
 
   float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 
   SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE |
                           SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY |
                           SDL_WINDOW_MAXIMIZED;
+    
+  int desktop_w, desktop_h;
+
+  if (!MR_IS_OK(GetDesktopResolution(desktop_w, desktop_h)) || desktop_w <= 0 || desktop_h <= 0) {
+    SDL_Quit();
+    return MR_MSGBOX_ERR_END_LOC("Failed to get desktop resolution.");
+  }
 
   g_Window =
-      SDL_CreateWindow("Dear ImGui SDL3+Vulkan", static_cast<int>(2560 * scale),
-                       static_cast<int>(1080 * scale), flags);
+      SDL_CreateWindow("Dear ImGui SDL3+Vulkan", static_cast<int>(desktop_w * scale),
+                       static_cast<int>(desktop_h * scale), flags);
 
   if (!g_Window)
     return MR_MSGBOX_ERR_END_LOC("Failed to create SDL window: " +
-                                 std::string(SDL_GetError()));
+                                 StrToWStr(SDL_GetError()));
 
   ImVector<const char *> extensions;
   {
