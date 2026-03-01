@@ -364,3 +364,7 @@ FodyWeavers.xsd
 .external/
 .vcpkg_installed/*
 /imgui.ini
+/vcpkg_installed/x64-windows-static-md/vcpkg
+/vcpkg_installed/x64-windows-static-md/x64-windows
+/vcpkg_installed/x64-windows-static-md/x64-windows-static-md
+/vcpkg_installed/x64-windows-static-md
