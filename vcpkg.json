@@ -3,18 +3,13 @@
   "version": "0.0.1",
   "dependencies":
   [
+    "freetype",
     {
       "name": "reflectcpp",
       "features":
       [
         "xml"
       ]
-    },
-    "opengl",
-    "opengl-registry",
-    "glad",
-    "glfw3",
-    "freetype"
-
+    }
   ]
 }

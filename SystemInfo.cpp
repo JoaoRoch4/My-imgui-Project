@@ -92,6 +92,7 @@ static std::wstring ReadCpuNameFromRegistry() {
     HKEY hkey = nullptr;
     if(RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey, 0, KEY_READ, &hkey) != ERROR_SUCCESS)
         return L"Desconhecido";
+        
 
     wchar_t buf[256] = {};
     DWORD   buf_bytes = sizeof(buf); // RegQueryValueExW espera bytes

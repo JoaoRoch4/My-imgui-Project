@@ -1,6 +1,6 @@
 #pragma once
 
-#define CLASSIC_C 0
+#define CLASSIC_C 1
 #define STL_C 1
 #define NO_WINDOWS 0
 #define SDL3 1
@@ -85,11 +85,11 @@
 // ============================================================================
 
 #if VULKAN
-#define VK_USE_PLATFORM_WIN32_KHR
-#define VK_ENABLE_BETA_EXTENSIONS
 #include <vulkan\vulkan.h>
 #include <vulkan\vulkan.hpp>
+#include <vma\vk_mem_alloc.h>
 #pragma comment(lib, "vulkan-1.lib")
+
 #endif
 
 #if OPENGL
@@ -105,7 +105,7 @@
 // ============================================================================
 
 #if CLASSIC_C
-extern "C" { 
+
 #include <assert.h> // Diagnósticos e asserções
 #include <ctype.h>  // Classificação de caracteres
 #include <errno.h>  // Teste de códigos de erro
@@ -140,7 +140,7 @@ extern "C" {
 #include <stdnoreturn.h> // Especificador de função que não retorna
 #include <threads.h>     // Biblioteca de threads padrão (pode exigir C11+)
 #include <uchar.h>       // Manipulação de caracteres Unicode
-}
+
 #endif // CLASSIC_C
 
 #ifdef __cplusplus
@@ -256,6 +256,7 @@ extern "C" {
 
 #if SDL3
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_vulkan.h>
 #include <SDL3/SDL_video.h>
 #pragma comment(lib, "SDL3.lib")
@@ -278,8 +279,9 @@ extern "C" {
 #include <imgui_impl_sdl3.h>
 #endif // SDL3
 #if VULKAN
-#ifdef VK_USE_PLATFORM_WIN32_KHR
+#define VK_USE_PLATFORM_WIN32_KHR
 #include <imgui_impl_vulkan.h>
+
 #ifdef IMGUI_IMPL_VULKAN_USE_VOLK
 #include <volk.h>
 #endif // IMGUI_IMPL_VULKAN_USE_VOLK
@@ -287,7 +289,6 @@ extern "C" {
 #ifdef _WIN32
 #include <imgui_impl_win32.h>
 #endif // _WIN32
-#endif // VK_USE_PLATFORM_WIN32_KHR
 
 
 // ============================================================================
@@ -321,20 +322,11 @@ extern "C" {
 #if PLUTO_SVG
 
 #ifdef IMGUI_ENABLE_FREETYPE_PLUTOSVG
-#pragma warning(push)
-#pragma warning(disable : 4273)                                              
-#pragma warning(disable : 4267)
-#pragma warning(disable : 4244)
-#ifdef _CRT_SECURE_NO_WARNINGS
-#undef _CRT_SECURE_NO_WARNINGS
-#endif // _CRT_SECURE_NO_WARNINGS
+
 #include "plutosvg-ft.h"
 #include "plutosvg.h"
 #include "plutovg.h"
-#pragma warning(pop)
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS
-#endif // _CRT_SECURE_NO_WARNINGS
+
 #endif // IMGUI_ENABLE_FREETYPE_PLUTOSVG
 
 #endif // PLUTO_SVG
@@ -403,10 +395,6 @@ extern "C" {
 
 #endif // FMT
 
-#undef free
-#define YYJSON_DISABLE_READER 1
-#define YYJSON_DISABLE_WRITER 1
-#include <yyjson.h>
 
 #if MSVC_INLINE
 #define INLINE __forceinline
