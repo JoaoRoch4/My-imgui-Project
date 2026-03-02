@@ -1,6 +1,9 @@
 #pragma once
 
 #include "pch.hpp"
+#include "MyResult.hpp"
+#include "Image.hpp"
+#include "Appsettings.hpp"
 
 
 ///< Image — wrapper de textura Vulkan para ImGui

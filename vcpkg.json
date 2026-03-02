@@ -1,141 +1,20 @@
 {
-  "name": "imguiapp",
+  "name": "app",
   "version": "0.0.1",
-  "dependencies": [
-    "cppwinrt",
-    "cuda",
-    "directx-dxc",
-    "directx-headers",
-    "directx12-agility",
+  "dependencies":
+  [
     {
-      "name": "directxmesh",
-      "features": [
-        "spectre"
-      ]
-    },
-    "directxsdk",
-    {
-      "name": "directxtex",
-      "features": [
-        "spectre"
-      ]
-    },
-    {
-      "name": "directxtk",
-      "features": [
-        "spectre"
-      ]
-    },
-    {
-      "name": "directxtk12",
-      "features": [
-        "spectre"
-      ]
-    },
-    "dx",
-    {
-      "name": "dxut",
-      "features": [
-        "spectre"
-      ]
-    },
-    {
-      "name": "effects11",
-      "features": [
-        "spectre"
-      ]
-    },
-    "fmt",
-    {
-      "name": "freetype",
-      "features": [
-        "brotli",
-        "bzip2",
-        "error-strings",
-        "png",
-        "subpixel-rendering",
-        "zlib"
-      ]
-    },
-    "gl3w",
-    "glfw3",
-    {
-      "name": "nlohmann-json",
-      "features": [
-        "diagnostics"
+      "name": "reflectcpp",
+      "features":
+      [
+        "xml"
       ]
     },
     "opengl",
     "opengl-registry",
-    "physx",
-    {
-      "name": "reflectcpp",
-      "features": [
-        "csv",
-        "toml",
-        "xml",
-        "yaml"
-      ]
-    },
-    "rioki-glow",
-    {
-      "name": "rmlui",
-      "features": [
-        "lottie",
-        "lua",
-        "svg"
-      ]
-    },
-    "sdl1",
-    {
-      "name": "sdl2",
-      "features": [
-        "vulkan"
-      ]
-    },
-    {
-      "name": "sdl3",
-      "features": [
-        "vulkan"
-      ]
-    },
-    {
-      "name": "sdl3-image",
-      "features": [
-        "jpeg",
-        "png",
-        "tiff",
-        "webp"
-      ]
-    },
-    "sdl3-shadercross",
-    {
-      "name": "sdl3-ttf",
-      "features": [
-        "svg"
-      ]
-    },
-    "termcolor",
-    {
-      "name": "uvatlas",
-      "features": [
-        "spectre"
-      ]
-    },
-    "vk-bootstrap",
-    "vulkan",
-    "vulkan-headers",
-    "vulkan-hpp",
-    {
-      "name": "vulkan-loader",
-      "features": [
-        "xcb",
-        "xlib"
-      ]
-    },
-    "vulkan-memory-allocator",
-    "vulkan-memory-allocator-hpp",
-    "vulkan-validationlayers"
-    
+    "glad",
+    "glfw3",
+    "freetype"
+
   ]
 }

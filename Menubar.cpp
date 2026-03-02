@@ -25,6 +25,7 @@
 #include "pch.hpp"
 #include "MenuBar.hpp"
 #include "App.hpp"       // ← traz extern App* g_App e os membros públicos de App
+#include "Console.hpp"   // ← para g_App->g_Console->AddLog()
 
 // =============================================================================
 // Construtor

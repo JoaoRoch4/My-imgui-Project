@@ -1,5 +1,7 @@
 #pragma once
 #include "pch.hpp"
+#include "VulkanContext_Wrapper.hpp"
+#include "ImGuiContext_Wrapper.hpp"
 /**
  * @brief Wraps the ImGui context, SDL3 and Vulkan backends.
  *

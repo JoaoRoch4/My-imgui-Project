@@ -55,7 +55,15 @@
  *   SDL_CreateWindow → g_Window = result → AllocGlobals() → Memory::AllocAll()
  */
 #include "pch.hpp"
+#include "Memory.hpp"
+#include "MyResult.hpp"
 #include "App.hpp"    // g_App — ponteiro global para App em execução
+#include "VulkanContext_Wrapper.hpp"
+#include "ImGuiContext_Wrapper.hpp"
+#include "FontManager.hpp"
+#include "EmojiDebugHelper.h"
+#include "Console.hpp"
+#include "StyleEditor.hpp"
 
 // ============================================================================
 // Construtor / Destrutor

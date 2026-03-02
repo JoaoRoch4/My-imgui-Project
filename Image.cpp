@@ -42,6 +42,8 @@
 
 #include "Image.hpp"
 #include "App.hpp"   // g_App → g_Vulkan (device, queue, window data)
+#include "VulkanContext_Wrapper.hpp"
+#include "ImGuiContext_Wrapper.hpp"
 
 // ============================================================================
 // Construtor

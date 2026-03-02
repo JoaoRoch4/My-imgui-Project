@@ -37,8 +37,16 @@
  *     como campo normal de AppSettings, igual a clear_color e show_console.
  */
 
-#include "App.hpp"
 #include "pch.hpp"
+#include "App.hpp"
+#include "memory.hpp"
+#include "MenuBar.hpp"
+#include "Console.hpp"
+#include "WindowsConsole.hpp"
+#include "StyleEditor.hpp"
+#include "VulkanContext_Wrapper.hpp"
+#include "ImGuiContext_Wrapper.hpp"
+#include "SystemInfo.hpp"
 
 // =============================================================================
 // Definição do ponteiro global — uma única vez em todo o projeto
@@ -515,7 +523,7 @@ MyResult App::RegisterCommands() {
 
   // BREAK — útil com debugger anexado
   g_Console->RegisterCommand(L"BREAK", L"USAR SOMENTE EM DEBUG",
-                             []() { __debugbreak; });
+                             []() { __debugbreak(); });
 
   // SPECS — hardware + APIs gráficas
   g_Console->RegisterCommand(
@@ -555,7 +563,7 @@ MyResult App::RegisterCommands() {
 
   g_Console->RegisterCommand(L"TestEngine",
                              L"Mostra funcionalidades do Test Engine",
-                             []() { testEnginemain(0, nullptr); });
+                             []() { /*testEnginemain(0, nullptr);*/ });
 
   g_Console->RegisterCommand(L"Abort",      
       L"Aborta o programa com falha (útil para testar handlers de crash)",

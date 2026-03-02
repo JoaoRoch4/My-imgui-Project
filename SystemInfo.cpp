@@ -64,8 +64,10 @@
  */
 
 #include "pch.hpp"
-
-
+#include "SystemInfo.hpp"
+#include "VulkanContext_Wrapper.hpp"
+#include "ImGuiContext_Wrapper.hpp"
+#include "Console.hpp"
 
 // Tipos OpenGL declarados manualmente (sem GL/gl.h)
 typedef unsigned int  GLenum;
@@ -858,6 +860,7 @@ SystemInfo SystemInfo::Collect(VulkanContext* vk, const wchar_t* current_api) {
         info.page_total_bytes = mem.ullTotalPageFile;
         info.page_avail_bytes = mem.ullAvailPageFile;
     }
+
 
     // ---- SO -----------------------------------------------------------------
     info.os_name = ReadOsName();

@@ -1,10 +1,34 @@
 #pragma once
 
+#define CLASSIC_C 0
+#define STL_C 1
+#define NO_WINDOWS 0
+#define SDL3 1
+#define DIRECTX11 1
+#define DIRECTX12 1
+#define VULKAN 1
+#define OPENGL 0
+#define IMGUI 1
+#define IMPLOT 1
+#define PLUTO_SVG 1
+#define IMGUI_ENABLE_TEST_ENGINE 0
+#define FREETYPE 1
+#define REFLECT_CPP 1
+#define NLOHMANN_JSON 1
+#define TERMCOLOR 1
+#define FMT 1
+#define CONVWCHARWIN32 1
+#define MSVC_INLINE 1
+
 // ============================================================================
 // Windows
 // ============================================================================
-#define IMGUI_FONTS_FOLDER                                                     \
-  "D:\\source\\cpp\\My imgui Project\\external\\imgui-docking\\misc\\fonts"
+
+#if NO_WINDOWS
+#undef _WIN32
+#undef WIN32_LEAN_AND_MEAN
+#endif
+
 #ifdef _WIN32
 
 #define NOMINMAX
@@ -35,35 +59,53 @@
 #pragma comment(lib, "advapi32.lib")
 
 // ============================================================================
-// DirectX
+// DirectX 11
 // ============================================================================
 
+#if DIRECTX11
 #include <d3d11.h>
+#pragma comment(lib, "d3d11.lib")
+#endif //DIRECTX11
+
+#if DIRECTX12
 #include <d3d12.h>
+#pragma comment(lib, "d3d12.lib")
+#endif //DIRECTX12
+
+#if defined(DIRECTX11) || defined(DIRECTX12)
 #include <dxgi1_4.h>
 #include <dxgi1_6.h>
 #pragma comment(lib, "dxgi.lib")
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "d3d12.lib")
+#endif //DIRECTX11 || DIRECTX12
+
 #endif //_WIN32
 
 // ============================================================================
 // VULKAN
 // ============================================================================
+
+#if VULKAN
+#define VK_USE_PLATFORM_WIN32_KHR
+#define VK_ENABLE_BETA_EXTENSIONS
 #include <vulkan\vulkan.h>
 #include <vulkan\vulkan.hpp>
-
 #pragma comment(lib, "vulkan-1.lib")
-#ifdef IMGUI_IMPL_VULKAN_USE_VOLK
-#include <volk.h>
 #endif
 
-#include <vma\vk_mem_alloc.h>
-#include <vulkan-memory-allocator-hpp\vk_mem_alloc.hpp>
+#if OPENGL
+#include <GL/gl.h>
+#pragma comment(lib,"opengl32.lib")
+#endif
+
+//#include <vma\vk_mem_alloc.h>
+//#include <vulkan-memory-allocator-hpp\vk_mem_alloc.hpp>
 
 // ============================================================================
 // C Standard Library
 // ============================================================================
+
+#if CLASSIC_C
+extern "C" { 
 #include <assert.h> // Diagnósticos e asserções
 #include <ctype.h>  // Classificação de caracteres
 #include <errno.h>  // Teste de códigos de erro
@@ -76,7 +118,6 @@
 #include <stdarg.h> // Argumentos variáveis em funções
 #include <stddef.h> // Definições padrão (size_t, NULL)
 #include <stdio.h>  // Entrada e saída padrão (printf, scanf)
-#include <stdlib.h> // Utilidades gerais (malloc, free, rand)
 #include <string.h> // Manipulação de strings
 #include <time.h>   // Funções de data e hora
 
@@ -99,7 +140,11 @@
 #include <stdnoreturn.h> // Especificador de função que não retorna
 #include <threads.h>     // Biblioteca de threads padrão (pode exigir C11+)
 #include <uchar.h>       // Manipulação de caracteres Unicode
+}
+#endif // CLASSIC_C
 
+#ifdef __cplusplus
+#if STL_C
 // --- I/O e Sistema ---
 #include <cstdio>  // Antigo stdio.h (printf, scanf, arquivos)
 #include <cstdlib> // Antigo stdlib.h (exit, malloc, rand)
@@ -130,8 +175,7 @@
 #include <clocale> // Antigo locale.h (configurações regionais)
 #include <cstdarg> // Antigo stdarg.h (funções com (...) argumentos)
 #include <cstddef> // Antigo stddef.h (definição de NULL, size_t, ptrdiff_t)
-
-#ifdef __cplusplus
+#endif // STL_C	
 
 // ============================================================================
 // C++ Standard Library
@@ -209,29 +253,48 @@
 // ============================================================================
 // SDL3
 // ============================================================================
-//
- #include <SDL3/SDL.h>
-// #include <SDL3/SDL_vulkan.h>
- #include <SDL3/SDL_video.h>
+
+#if SDL3
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
+#include <SDL3/SDL_video.h>
 #pragma comment(lib, "SDL3.lib")
 #pragma comment(lib, "SDL3-static.lib")
+#endif // SDL3
 
 // ============================================================================
 // ImGui
 // ============================================================================
 
+#if IMGUI
+
 #include "imconfig.h" // ImGui configuration (e.g. #define IMGUI_IMPL_VULKAN_USE_VOLK)
+#include "imgui_user.h" // Configurações personalizadas do ImGui (estilo, cores, etc.)
+
 #include <imgui.h>
-#include <imgui_freetype.h>
-#include <imgui_impl_sdl3.h>
-#include <imgui_impl_vulkan.h>
 #include <imgui_internal.h>
 #include <imgui_stdlib.h>
+#if SDL3
+#include <imgui_impl_sdl3.h>
+#endif // SDL3
+#if VULKAN
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+#include <imgui_impl_vulkan.h>
+#ifdef IMGUI_IMPL_VULKAN_USE_VOLK
+#include <volk.h>
+#endif // IMGUI_IMPL_VULKAN_USE_VOLK
+#endif //VULKAN
+#ifdef _WIN32
+#include <imgui_impl_win32.h>
+#endif // _WIN32
+#endif // VK_USE_PLATFORM_WIN32_KHR
+
 
 // ============================================================================
 // ImGui test engine (ferramenta de captura de UI para testes automatizados)
 // ============================================================================
 
+#if IMGUI_ENABLE_TEST_ENGINE
 // Headers específicos da Test Engine
 #include <imgui_te_context.h>
 #include <imgui_te_coroutine.h>
@@ -240,120 +303,174 @@
 #include <imgui_te_perftool.h>
 #include <imgui_te_utils.h>
 #include <imgui_test_suite.h>
-
-// ============================================================================
-// reflect-cpp (serialização JSON)
-// ============================================================================
-
-#pragma warning(push)
-#pragma warning(disable                                                        \
-                : 4324) // structure was padded due to alignment specifier
-#pragma warning(disable                                                        \
-                : 4996) // 'function': This function or variable may be unsafe
-
-#include "rfl.hpp"
-#include "rfl/AllOf.hpp"
-#include "rfl/json.hpp"
-
-#pragma warning(pop)
-
-// ============================================================================
-// nlohmann-json
-// ============================================================================
-
-#include "nlohmann/json.hpp"
+#endif // IMGUI_ENABLE_TEST_ENGINE
 
 // ============================================================================
 // implot
 // ============================================================================
 
-#include "implot.h"
-#include "implot_internal.h"
-
-// ============================================================================
-// freetype
-// ============================================================================
-
-#define FT2_BUILD_LIBRARY
-#include <freetype/config/ftconfig.h>
-#include <freetype/freetype.h>
-#include <ft2build.h>
+#if IMPLOT
+#include <implot.h>
+#include <implot3d.h>
+#endif // IMPLOT
 
 // ============================================================================
 // pluto
 // ============================================================================
 
-#include "plutosvg/plutosvg-ft.h"
-#include "plutosvg/plutosvg.h"
-#include "plutovg/plutovg.h"
+#if PLUTO_SVG
 
+#ifdef IMGUI_ENABLE_FREETYPE_PLUTOSVG
+#pragma warning(push)
+#pragma warning(disable : 4273)                                              
+#pragma warning(disable : 4267)
+#pragma warning(disable : 4244)
+#ifdef _CRT_SECURE_NO_WARNINGS
+#undef _CRT_SECURE_NO_WARNINGS
+#endif // _CRT_SECURE_NO_WARNINGS
+#include "plutosvg-ft.h"
+#include "plutosvg.h"
+#include "plutovg.h"
+#pragma warning(pop)
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif // _CRT_SECURE_NO_WARNINGS
+#endif // IMGUI_ENABLE_FREETYPE_PLUTOSVG
 
-inline static const wchar_t *WinWiden(const std::string &s) {
-  if (s.empty())
-    return L"";
-  static int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
-  static std::wstring ws(len, 0);
-  MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &ws[0], len);
-  return ws.c_str();
+#endif // PLUTO_SVG
+
+// ============================================================================
+// freetype
+// ============================================================================
+
+#if FREETYPE
+
+#ifdef IMGUI_ENABLE_FREETYPE
+
+#include <imgui_freetype.h>
+#include <freetype/config/ftheader.h>
+#include <freetype/freetype.h>
+
+#endif // IMGUI_ENABLE_FREETYPE
+#endif // FREETYPE
+#endif // IMGUI
+
+// ============================================================================
+// reflect-cpp (serialização JSON)
+// ============================================================================
+
+#if REFLECT_CPP
+
+#pragma warning(push)
+#pragma warning(disable : 4324)                                                      
+#pragma warning(disable : 4996)                                                        
+
+#include <rfl\AllOf.hpp>
+#include <rfl\json.hpp>
+
+#pragma warning(pop)
+
+#endif // REFLECT_CPP
+
+// ============================================================================
+// nlohmann-json
+// ============================================================================
+
+#if NLOHMANN_JSON
+#include "nlohmann/json.hpp"
+#include "nlohmann/json_fwd.hpp"
+#endif // NLOHMANN_JSON
+
+// ============================================================================
+// termcolor
+// ============================================================================
+
+#if TERMCOLOR
+
+#include "termcolor.hpp"
+
+#endif // TERMCOLOR
+
+// ============================================================================
+// fmt
+// ============================================================================
+
+#if FMT
+
+#include "fmt/core.h"
+#include "fmt/format.h"
+#include "fmt/printf.h"
+
+#endif // FMT
+
+#undef free
+#define YYJSON_DISABLE_READER 1
+#define YYJSON_DISABLE_WRITER 1
+#include <yyjson.h>
+
+#if MSVC_INLINE
+#define INLINE __forceinline
+#endif // MSVC_INLINE
+
+#if !MSVC_INLINE
+#define INLINE inline
+#endif // !MSVC_INLINE
+
+#if CONVWCHARWIN32
+
+INLINE static const wchar_t* WinWiden(const std::string& s) {
+	if(s.empty()) {
+		constexpr static const wchar_t* empty = L"";
+		return empty;
+	}
+	static int len = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0);
+	static std::wstring ws(len, 0);
+	MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, &ws[0], len);
+	return ws.c_str();
 }
 
-inline static const wchar_t *WinWiden(const char *s) {
-  if (s == nullptr || *s == '\0')
-    return L"";
+INLINE static const wchar_t* WinWiden(const char* s) {
+	if(s == nullptr || *s == '\0') {
+		constexpr static const wchar_t* empty = L"";
+		return empty;
+	}
 
-  static int len = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
-  static std::wstring ws(len, 0);
-  MultiByteToWideChar(CP_UTF8, 0, s, -1, &ws[0], len);
+	static int len = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+	static std::wstring ws(len, 0);
+	MultiByteToWideChar(CP_UTF8, 0, s, -1, &ws[0], len);
 
-  return ws.c_str();
+	return ws.c_str();
 }
 
-inline static const std::wstring &StrWinWiden(const std::string &e) {
-  if (e.empty())
-    return L"";
+INLINE static const std::wstring& StrWinWiden(const std::string& e) {
+	if(e.empty()) {
+		static const std::wstring& empty = L"";
+		return empty;
+	}
 
-  static int len = MultiByteToWideChar(CP_UTF8, 0, e.c_str(), -1, NULL, 0);
-  static std::wstring ws(len, 0);
-  MultiByteToWideChar(CP_UTF8, 0, e.c_str(), -1, &ws[0], len);
-  static std::wstring result = ws;
-  return result;
+	static int len = MultiByteToWideChar(CP_UTF8, 0, e.c_str(), -1, NULL, 0);
+	static std::wstring ws(len, 0);
+	MultiByteToWideChar(CP_UTF8, 0, e.c_str(), -1, &ws[0], len);
+	static std::wstring result = ws;
+	return result;
 }
 
-inline static const std::wstring &StrWinWiden(const char *s) {
-  if (s == nullptr || *s == '\0')
-    return L"";
+INLINE static const std::wstring& StrWinWiden(const char* s) {
+	if(s == nullptr || *s == '\0') {
+		const static std::wstring empty = L"";
+		return empty;
+	}
 
+	static int len = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+	static std::wstring ws(len, 0);
+	MultiByteToWideChar(CP_UTF8, 0, s, -1, &ws[0], len);
 
-  static int len = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
-  static std::wstring ws(len, 0);
-  MultiByteToWideChar(CP_UTF8, 0, s, -1, &ws[0], len);
-
-  return ws.c_str();
+	return ws;
 }
 
 #define ToWStr(s) WinWiden(s)
 #define StrToWStr(s) StrWinWiden(s)
 
+#endif // CONVWCHARWIN32
+
 #define TXT(msg) L##msg
-
-// ============================================================================
-// Projeto
-// ============================================================================
-
-#include "MyResult.hpp"
-#include "AppSettings.hpp"
-#include "Console.hpp"
-#include "EmojiDebugHelper.h"
-#include "FontManager.hpp"
-#include "FontScale.hpp"
-#include "Image.hpp"
-#include "Memory.hpp"
-#include "MenuBar.hpp"
-#include "MicaTheme.h"
-#include "StyleEditor.hpp"
-#include "SystemInfo.hpp"
-#include "VulkanContext_Wrapper.hpp"
-#include "ImGuiContext_Wrapper.hpp"
-#include "WindowsConsole.hpp"
-#include "App.hpp"
-

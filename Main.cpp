@@ -38,10 +38,12 @@
  * Desligado após run() retornar.
  */
 
+ #include "pch.hpp"            // cabeçalho pré-compilado — SEMPRE PRIMEIRO
+
 #include "main.hpp"
 #include "App.hpp"            // classe App + extern App* g_App
 #include "WindowsConsole.hpp" // console externo Win32 com hotkey
-#include "pch.hpp"            // cabeçalho pré-compilado — SEMPRE PRIMEIRO
+#include "MyResult.hpp"
 
 // =============================================================================
 // main — ponto de entrada de console (/SUBSYSTEM:CONSOLE)
@@ -101,8 +103,8 @@ _Use_decl_annotations_ INT  WINAPI  wWinMain(
   WindowsConsole::init(VK_F1); // F1 abre/fecha o console externo
 
     //App *app = Memory::Get()->GetApp(); // aloca App para que g_App seja válido durante run()
-   App app;                     // construtor: g_App = this
-  MyResult result = app.run(); // encapsula SDL_Init → loop → Close
+   std::unique_ptr<App> app = std::make_unique<App>();                     // construtor: g_App = this
+  MyResult result = app->run(); // encapsula SDL_Init → loop → Close
 
   // Shutdown após run() — Close() já liberou todos os recursos.
   WindowsConsole::shutdown();

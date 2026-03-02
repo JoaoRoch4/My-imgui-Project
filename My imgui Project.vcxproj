@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug-Profile|Win32">
+      <Configuration>Debug-Profile</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug-Profile|x64">
+      <Configuration>Debug-Profile</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
@@ -32,6 +40,12 @@
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -40,6 +54,15 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+    <MSVCPreviewEnabled>true</MSVCPreviewEnabled>
+    <SpectreMitigation>Spectre</SpectreMitigation>
+    <UseOfMfc>Static</UseOfMfc>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
@@ -63,10 +86,17 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="PropertySheet.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="PropertySheet.props" />
   </ImportGroup>
@@ -75,7 +105,13 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\external\external\plutovg\\source;$(ProjectDir)\external\external\plutovg\include;$(ProjectDir)\external\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\externalplutovg\\source;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\external\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ProjectDir)\external\implot3d;$(ProjectDir)\external\freetype\include;$(ProjectDir)\external\freetype\src;$(ProjectDir)\external\freetype\src\base;$(ProjectDir)\external\freetype\include\freetype\internal;$(ProjectDir)\external\freetype\include\freetype\internal\services;$(ProjectDir)\external\freetype\include\freetype\internal\config;$(ProjectDir)\external\dlg\include;$(ProjectDir)\external\dlg\src;$(ProjectDir)\external\json\single_include;$(ProjectDir)\external\termcolor\include\termcolor;$(ProjectDir)\external\fmt\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <CodeAnalysisRuleSet>RULES.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">
+    <ExternalIncludePath>$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\externalplutovg\\source;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\external\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ProjectDir)\external\implot3d;$(ProjectDir)\external\freetype\include;$(ProjectDir)\external\freetype\src;$(ProjectDir)\external\freetype\src\base;$(ProjectDir)\external\freetype\include\freetype\internal;$(ProjectDir)\external\freetype\include\freetype\internal\services;$(ProjectDir)\external\freetype\include\freetype\internal\config;$(ProjectDir)\external\dlg\include;$(ProjectDir)\external\dlg\src;$(ProjectDir)\external\json\single_include;$(ProjectDir)\external\termcolor\include\termcolor;$(ProjectDir)\external\fmt\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <CodeAnalysisRuleSet>RULES.ruleset</CodeAnalysisRuleSet>
+    <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg">
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
@@ -84,7 +120,24 @@
     <VcpkgUseStatic>true</VcpkgUseStatic>
     <VcpkgUseMD>true</VcpkgUseMD>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'" Label="Vcpkg">
+    <VcpkgUseStatic>true</VcpkgUseStatic>
+    <VcpkgUseMD>true</VcpkgUseMD>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
@@ -116,7 +169,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>DEBUG;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_UTF8;WIN32;_WIN32;UNICODE;_UNICODE;_MBCS ;CP_UTF8;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>DEBUG;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_UTF8;WIN32;_WIN32;UNICODE;_UNICODE;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
@@ -129,10 +182,12 @@
       <IntelJCCErratum>true</IntelJCCErratum>
       <AssemblerOutput>All</AssemblerOutput>
       <UseUnicodeForAssemblerListing>true</UseUnicodeForAssemblerListing>
-      <AdditionalOptions>/CP_UTF8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions> /utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <StructMemberAlignment>16Bytes</StructMemberAlignment>
-      <EnableVectorLength>VectorLength512</EnableVectorLength>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <EnableVectorLength>NotSet</EnableVectorLength>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -145,11 +200,59 @@
       <LargeAddressAware>true</LargeAddressAware>
       <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
       <IgnoreSpecificDefaultLibraries>SDL2-static.lib;SDL.lib;SDL2-staticd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
-      <AdditionalDependencies>SDL3-static.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
     </Manifest>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>DEBUG;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_UTF8;WIN32;_WIN32;UNICODE;_UNICODE;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.hpp</PrecompiledHeaderFile>
+      <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <OpenMPSupport>true</OpenMPSupport>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntelJCCErratum>true</IntelJCCErratum>
+      <AssemblerOutput>All</AssemblerOutput>
+      <UseUnicodeForAssemblerListing>true</UseUnicodeForAssemblerListing>
+      <AdditionalOptions> /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <EnableVectorLength>NotSet</EnableVectorLength>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>%VULKAN_SDK%\lib;%SDL3_DIR%\lib\x64;%(AdditionalLibraryDirectories);</AdditionalLibraryDirectories>
+      <AdditionalOptions>/IGNORE:4217 /IGNORE:4286 %(AdditionalOptions)</AdditionalOptions>
+      <GenerateMapFile>true</GenerateMapFile>
+      <MapExports>true</MapExports>
+      <AssemblyDebug>true</AssemblyDebug>
+      <LargeAddressAware>true</LargeAddressAware>
+      <GenerateWindowsMetadata>true</GenerateWindowsMetadata>
+      <IgnoreSpecificDefaultLibraries>SDL2-static.lib;SDL.lib;SDL2-staticd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+      <Profile>true</Profile>
+    </Link>
+    <Manifest>
+      <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
+    </Manifest>
+    <ProjectReference>
+      <UseLibraryDependencyInputs>true</UseLibraryDependencyInputs>
+    </ProjectReference>
+    <ResourceCompile>
+      <Culture>0x0416</Culture>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -170,146 +273,431 @@
     <None Include=".gitattributes" />
     <None Include=".gitignore" />
     <None Include="cpp.hint" />
-    <None Include="vcpkg-configuration.json" />
+    <None Include="RULES.ruleset" />
     <None Include="vcpkg.json" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Console.cpp" />
+    <ClCompile Include="external\dlg\src\dlg\dlg.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftadvanc.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftbase.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftbbox.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftbdf.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftbitmap.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftcalc.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftcid.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftcolor.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftdbgmem.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftdebug.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\fterrors.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftfntfmt.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftfstype.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftgasp.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftgloadr.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftglyph.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftgxval.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\fthash.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftinit.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftlcdfil.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftmac.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftmm.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftobjs.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftotval.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftoutln.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftpatent.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftpfr.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftpsprop.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftrfork.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftsnames.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftstream.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftstroke.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftsynth.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftsystem.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\fttrigon.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\fttype1.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftutil.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\ftwinfnt.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="external\freetype\src\base\md5.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="external\imgui-docking\backends\imgui_impl_sdl3.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui-docking\backends\imgui_impl_vulkan.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui-docking\imgui.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui-docking\imgui_demo.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui-docking\imgui_draw.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui-docking\imgui_tables.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui-docking\imgui_widgets.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui-docking\misc\freetype\imgui_freetype.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_capture_tool.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_context.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_coroutine.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_engine.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_exporters.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_perftool.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_ui.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_utils.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_core.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_docking.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_inputs.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_nav.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_perf.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_tables.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_viewports.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_widgets.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_widgets_inputtext.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_test_suite.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\shared\imgui_app.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\implot\implot.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\implot\implot_demo.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\implot\implot_items.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutosvg\source\plutosvg.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-blend.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-canvas.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-font.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-ft-math.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-ft-raster.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-ft-stroker.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-matrix.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-paint.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-path.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-rasterize.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-surface.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="external\stb\stb_vorbis.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="FontManager.cpp" />
     <ClCompile Include="Fontscale.cpp" />
@@ -322,6 +710,7 @@
     <ClCompile Include="MyResult.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="StyleEditor.cpp" />
     <ClCompile Include="SystemInfo.cpp" />
@@ -334,6 +723,110 @@
     <ClInclude Include="Appsettings.hpp" />
     <ClInclude Include="Console.hpp" />
     <ClInclude Include="EmojiDebugHelper.h" />
+    <ClInclude Include="external\dlg\include\dlg\dlg.h" />
+    <ClInclude Include="external\dlg\include\dlg\dlg.hpp" />
+    <ClInclude Include="external\dlg\include\dlg\output.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\ftconfig.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\ftheader.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\ftmodule.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\ftoption.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\ftstdlib.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\integer-types.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\mac-support.h" />
+    <ClInclude Include="external\freetype\include\freetype\config\public-macros.h" />
+    <ClInclude Include="external\freetype\include\freetype\freetype.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftadvanc.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftbbox.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftbdf.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftbitmap.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftbzip2.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftcache.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftchapters.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftcid.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftcolor.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftdriver.h" />
+    <ClInclude Include="external\freetype\include\freetype\fterrdef.h" />
+    <ClInclude Include="external\freetype\include\freetype\fterrors.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftfntfmt.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftgasp.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftglyph.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftgxval.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftgzip.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftimage.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftincrem.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftlcdfil.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftlist.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftlogging.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftlzw.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftmac.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftmm.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftmodapi.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftmoderr.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftotval.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftoutln.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftparams.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftpfr.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftrender.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftsizes.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftsnames.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftstroke.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftsynth.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftsystem.h" />
+    <ClInclude Include="external\freetype\include\freetype\fttrigon.h" />
+    <ClInclude Include="external\freetype\include\freetype\fttypes.h" />
+    <ClInclude Include="external\freetype\include\freetype\ftwinfnt.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\autohint.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\cffotypes.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\cfftypes.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\compiler-macros.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftcalc.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftdebug.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftdrv.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftgloadr.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\fthash.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftmemory.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftmmtypes.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftobjs.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftpsprop.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftrfork.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftserv.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftstream.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\fttrace.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\ftvalid.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\psaux.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\pshints.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svbdf.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svcfftl.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svcid.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svfntfmt.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svgldict.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svgxval.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svkern.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svmetric.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svmm.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svotval.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svpfr.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svpostnm.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svprop.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svpscmap.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svpsinfo.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svsfnt.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svttcmap.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svtteng.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svttglyf.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\services\svwinfnt.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\sfnt.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\svginterface.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\t1types.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\tttypes.h" />
+    <ClInclude Include="external\freetype\include\freetype\internal\wofftypes.h" />
+    <ClInclude Include="external\freetype\include\freetype\otsvg.h" />
+    <ClInclude Include="external\freetype\include\freetype\t1tables.h" />
+    <ClInclude Include="external\freetype\include\freetype\ttnameid.h" />
+    <ClInclude Include="external\freetype\include\freetype\tttables.h" />
+    <ClInclude Include="external\freetype\include\freetype\tttags.h" />
+    <ClInclude Include="external\freetype\src\base\ftbase.h" />
+    <ClInclude Include="external\freetype\src\base\md5.h" />
     <ClInclude Include="external\imgui-docking\backends\imgui_impl_sdl3.h" />
     <ClInclude Include="external\imgui-docking\backends\imgui_impl_vulkan.h" />
     <ClInclude Include="external\imgui-docking\imconfig.h" />
@@ -396,6 +889,7 @@
     <ClInclude Include="Fontscale.hpp" />
     <ClInclude Include="Image.hpp" />
     <ClInclude Include="ImGuiContext_Wrapper.hpp" />
+    <ClInclude Include="imgui_user.h" />
     <ClInclude Include="main.hpp" />
     <ClInclude Include="Memory.hpp" />
     <ClInclude Include="Menubar.hpp" />
@@ -406,6 +900,9 @@
     <ClInclude Include="SystemInfo.hpp" />
     <ClInclude Include="VulkanContext_Wrapper.hpp" />
     <ClInclude Include="WindowsConsole.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="external\freetype\src\base\ftver.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
