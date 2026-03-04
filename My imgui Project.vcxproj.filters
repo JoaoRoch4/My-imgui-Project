@@ -7,17 +7,8 @@
     <Filter Include="external\pluto">
       <UniqueIdentifier>{659d7f92-b7d9-4712-bef8-560723219d4a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="external\implot">
-      <UniqueIdentifier>{821f6366-cdb8-45cd-b31f-efaf525b945a}</UniqueIdentifier>
-    </Filter>
     <Filter Include="external\stb">
       <UniqueIdentifier>{1169b29d-bd63-411d-9fdd-d767c24f8894}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="external\implot\inc">
-      <UniqueIdentifier>{9dca0856-82c7-4cb0-ad16-b8c098a3d014}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="external\implot\src">
-      <UniqueIdentifier>{22d24480-1fec-40c5-bbed-bdf96fddb196}</UniqueIdentifier>
     </Filter>
     <Filter Include="external\stb\inc">
       <UniqueIdentifier>{d69fb697-929d-40a7-b739-81bd7a92955e}</UniqueIdentifier>
@@ -74,12 +65,6 @@
     <Filter Include="external\plot">
       <UniqueIdentifier>{fb64be65-7aea-4c18-8fce-194001f64c82}</UniqueIdentifier>
     </Filter>
-    <Filter Include="external\plot\inc">
-      <UniqueIdentifier>{c8890e6c-86b4-47df-b1ee-865ba3a2e775}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="external\plot\src">
-      <UniqueIdentifier>{c8f4a3d8-7255-40c8-bed9-27f21d042bab}</UniqueIdentifier>
-    </Filter>
     <Filter Include="external\test engine">
       <UniqueIdentifier>{9500cf0b-51a4-401d-b340-90cbe400f23d}</UniqueIdentifier>
     </Filter>
@@ -127,6 +112,24 @@
     </Filter>
     <Filter Include="external\freetype\include\inc">
       <UniqueIdentifier>{78965a20-d35b-422d-924d-ab73507ab2c5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\implot">
+      <UniqueIdentifier>{821f6366-cdb8-45cd-b31f-efaf525b945a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\implot\inc">
+      <UniqueIdentifier>{9dca0856-82c7-4cb0-ad16-b8c098a3d014}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\implot\src">
+      <UniqueIdentifier>{22d24480-1fec-40c5-bbed-bdf96fddb196}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\implot3d">
+      <UniqueIdentifier>{0f770642-f4e6-4460-8c40-bcf50a8d1094}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\implot3d\inc">
+      <UniqueIdentifier>{c8890e6c-86b4-47df-b1ee-865ba3a2e775}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="external\plot\implot3d\src">
+      <UniqueIdentifier>{c8f4a3d8-7255-40c8-bed9-27f21d042bab}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -246,13 +249,13 @@
       <Filter>external\imgui-viewports\backends\src</Filter>
     </ClCompile>
     <ClCompile Include="external\implot\implot_items.cpp">
-      <Filter>external\implot\src</Filter>
+      <Filter>external\plot\implot\src</Filter>
     </ClCompile>
     <ClCompile Include="external\implot\implot.cpp">
-      <Filter>external\implot\src</Filter>
+      <Filter>external\plot\implot\src</Filter>
     </ClCompile>
     <ClCompile Include="external\implot\implot_demo.cpp">
-      <Filter>external\implot\src</Filter>
+      <Filter>external\plot\implot\src</Filter>
     </ClCompile>
     <ClCompile Include="TestEngineWrapper.cpp">
       <Filter>Local\src</Filter>
@@ -437,6 +440,18 @@
     <ClCompile Include="external\dlg\src\dlg\dlg.c">
       <Filter>external\dlg\src</Filter>
     </ClCompile>
+    <ClCompile Include="external\implot3d\implot3d_demo.cpp">
+      <Filter>external\plot\implot3d\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\implot3d\implot3d_items.cpp">
+      <Filter>external\plot\implot3d\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\implot3d\implot3d_meshes.cpp">
+      <Filter>external\plot\implot3d\src</Filter>
+    </ClCompile>
+    <ClCompile Include="external\implot3d\implot3d.cpp">
+      <Filter>external\plot\implot3d\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.hpp">
@@ -491,10 +506,10 @@
       <Filter>Local\include</Filter>
     </ClInclude>
     <ClInclude Include="external\implot\implot.h">
-      <Filter>external\implot\inc</Filter>
+      <Filter>external\plot\implot\inc</Filter>
     </ClInclude>
     <ClInclude Include="external\implot\implot_internal.h">
-      <Filter>external\implot\inc</Filter>
+      <Filter>external\plot\implot\inc</Filter>
     </ClInclude>
     <ClInclude Include="external\stb\stb_c_lexer.h">
       <Filter>external\stb\inc</Filter>
@@ -979,6 +994,12 @@
     </ClInclude>
     <ClInclude Include="external\freetype\include\freetype\fttrigon.h">
       <Filter>external\freetype\include\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\implot3d\implot3d.h">
+      <Filter>external\plot\implot3d\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="external\implot3d\implot3d_internal.h">
+      <Filter>external\plot\implot3d\inc</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

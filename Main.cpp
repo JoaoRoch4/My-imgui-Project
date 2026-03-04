@@ -96,18 +96,43 @@ _Use_decl_annotations_ INT  WINAPI  wWinMain(
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow) {
 
-	setlocale(LC_ALL, "utf-8"); // para suporte a caracteres acentuados no console
-	SetConsoleOutputCP(CP_UTF8); // para entrada UTF-8 no console
+	
   // Console externo Win32 inicializado ANTES de App para capturar
   // todos os logs de inicialização do Vulkan, ImGui e FontManager.
   WindowsConsole::init(VK_F1); // F1 abre/fecha o console externo
-
+  std::cout <<  termcolor::blue << "Console externo inicializado. Pressione F1 para abrir/fechar. João André" << termcolor::reset << std::endl;
     //App *app = Memory::Get()->GetApp(); // aloca App para que g_App seja válido durante run()
-   std::unique_ptr<App> app = std::make_unique<App>();                     // construtor: g_App = this
+ app = std::make_unique<App>();                     // construtor: g_App = this
   MyResult result = app->run(); // encapsula SDL_Init → loop → Close
 
   // Shutdown após run() — Close() já liberou todos os recursos.
   WindowsConsole::shutdown();
+    app.reset();
 
   return MR_IS_OK(result) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+RENDERDOC_API_1_1_2 *rdoc_api = NULL;
+
+void InitRenderDoc() {
+    // Tenta obter o handle da DLL se o RenderDoc estiver injetado no processo
+    if (HMODULE mod = GetModuleHandleA("renderdoc.dll")) {
+        pRENDERDOC_GetAPI RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
+        int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
+        if (ret != 1) rdoc_api = NULL;
+    }
+}
+
+// Chame isso quando quiser capturar (ex: ao apertar F12)
+void CaptureFrame() {
+    if (rdoc_api) {
+        rdoc_api->StartFrameCapture(NULL, NULL);
+        // O RenderDoc captura o que estiver entre Start e End
+        rdoc_api->EndFrameCapture(NULL, NULL);
+        
+        // Abre a UI do RenderDoc automaticamente para mostrar o resultado
+        if (!rdoc_api->IsTargetControlConnected()) {
+            rdoc_api->LaunchReplayUI(1, "");
+        }
+    }
 }

@@ -5,7 +5,6 @@
 #include "Image.hpp"
 #include "Appsettings.hpp"
 
-
 ///< Image — wrapper de textura Vulkan para ImGui
 
 /**
@@ -83,6 +82,30 @@ public:
 
     App();
     ~App() = default;
+    RENDERDOC_API_1_1_2 *rdoc_api = NULL;
+
+    void InitRenderDoc() {
+    // Tenta obter o handle da DLL se o RenderDoc estiver injetado no processo
+    if (HMODULE mod = GetModuleHandleA("renderdoc.dll")) {
+        pRENDERDOC_GetAPI RENDERDOC_GetAPI = std::bit_cast<pRENDERDOC_GetAPI>(GetProcAddress(mod, "RENDERDOC_GetAPI"));
+        const int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, std::bit_cast<void **> ( & rdoc_api));
+        if (ret != 1) rdoc_api = NULL;
+    }
+}
+
+// Chame isso quando quiser capturar (ex: ao apertar F12)
+void CaptureFrame() {
+    if (rdoc_api) {
+        rdoc_api->StartFrameCapture(NULL, NULL);
+        // O RenderDoc captura o que estiver entre Start e End
+        rdoc_api->EndFrameCapture(NULL, NULL);
+        
+        // Abre a UI do RenderDoc automaticamente para mostrar o resultado
+        if (!rdoc_api->IsTargetControlConnected()) {
+            rdoc_api->LaunchReplayUI(1, "");
+        }
+    }
+}
 
     // =========================================================================
     // Ponto de entrada

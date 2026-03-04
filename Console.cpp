@@ -274,7 +274,7 @@ std::wstring Console::Utf8ToWide(const char* str) {
 
 #ifdef _WIN32
     // Windows: OS handles UTF-8 → UTF-16 conversion
-    int needed = MultiByteToWideChar(
+    const int needed = MultiByteToWideChar(
         CP_UTF8, 0,   // source code page: UTF-8
         str, -1,      // source: null-terminated byte string
         nullptr, 0);  // first call: query required wchar_t count
@@ -321,8 +321,8 @@ int Console::Wcsicmp(const wchar_t* s1, const wchar_t* s2) {
     int d; // Signed difference between two uppercased codepoints
 
     // Advance while characters match (uppercased) and s1 has not ended
-    while((d = static_cast<int>(towupper(static_cast<wint_t>(*s2)))
-        - static_cast<int>(towupper(static_cast<wint_t>(*s1)))) == 0
+    while((d = static_cast<int>(std::towupper(*s2))
+        - static_cast<int>(std::towupper(*s1))) == 0
         && *s1) {
         s1++; // Next wide character in s1
         s2++; // Next wide character in s2
@@ -366,12 +366,12 @@ int Console::Wcsnicmp(const wchar_t* s1, const wchar_t* s2, int n) {
 wchar_t* Console::Wcsdup(const wchar_t* s) {
     IM_ASSERT(s); // Crash in debug builds if s is null
 
-    size_t   len = wcslen(s) + 1;                        // Wide character count including NUL
-    size_t   bytes = len * sizeof(wchar_t);                // Byte count for memcpy
+    const size_t   len = wcslen(s) + 1;                        // Wide character count including NUL
+    const size_t   bytes = len * sizeof(wchar_t);                // Byte count for memcpy
     void* buf = ImGui::MemAlloc(bytes);                // Allocate via ImGui's heap
     IM_ASSERT(buf);                                        // Crash on allocation failure
 
-    return static_cast<wchar_t*>(wmemcpy(static_cast<wchar_t*>(buf), s, len));
+    return std::bit_cast<wchar_t*>(wmemcpy(std::bit_cast<wchar_t*>(buf), s, len));
     //     ^^ cast void* back to wchar_t* after wmemcpy (copies len wide chars)
 }
 
@@ -751,7 +751,7 @@ void Console::Draw(const wchar_t* title, bool* p_open) {
     // buffer and convert to/from InputBuf (wchar_t[]) at the boundary.
     if(ImGui::InputText("Input", InputBufUtf8, IM_COUNTOF(InputBufUtf8),
         input_flags, &TextEditCallbackStub,
-        static_cast<void*>(this))) {
+        std::bit_cast<void*>(this))) {
         // Convert the UTF-8 result back to wide for all internal processing
         std::wstring wide_input = Utf8ToWide(InputBufUtf8);
 

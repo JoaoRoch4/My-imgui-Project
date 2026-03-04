@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file App.cpp
  * @brief Implementação de App — ciclo de vida completo da aplicação.
  *
@@ -71,15 +71,16 @@ App *g_App = nullptr;
  * garantindo que MenuBar e outros possam acessar a instância desde o início.
  */
 App::App()
-    : bViewportDocking(false), g_Done(false), g_ShowDemo(true),
-      g_ShowStyleEd(false), g_IsFullscreen(false), g_grafico(false),
-      g_window_opacity(false), g_color_ptr(nullptr), g_io(nullptr),
-      g_Vulkan(nullptr), g_ImGui(nullptr), g_Console(nullptr), g_Style(nullptr),
-      g_MenuBar(nullptr), g_Settings(nullptr), g_Window(nullptr),
-      m_ConfigFile("settings.json") {
+	: bViewportDocking(false), g_Done(false), g_ShowDemo(true),
+	  g_ShowStyleEd(false), g_IsFullscreen(false), g_grafico(false),
+	  g_window_opacity(false), g_color_ptr(nullptr), g_io(nullptr),
+	  g_Vulkan(nullptr), g_ImGui(nullptr), g_Console(nullptr), g_Style(nullptr),
+	  g_MenuBar(nullptr), g_Settings(nullptr), g_Window(nullptr),
+	  m_ConfigFile("settings.json") {
   // Expõe esta instância globalmente para que MenuBar.cpp e outros
   // possam acessar os membros públicos via g_App->membro
   g_App = this;
+  InitRenderDoc();
 }
 
 MyResult App::Windows() {
@@ -99,159 +100,159 @@ MyResult App::Windows() {
   g_MenuBar->Draw(); // acessa g_App->g_Done, g_App->g_Settings, etc.
 
   if (g_ShowDemo)
-    ImGui::ShowDemoWindow(&g_ShowDemo);
+	ImGui::ShowDemoWindow(&g_ShowDemo);
 
   {
-    ImGui::Begin("Window Controls");
+	ImGui::Begin("Window Controls");
 
-    float btn_w = 60.0f;
-    float padding = ImGui::GetStyle().WindowPadding.x;
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - btn_w - padding);
-    if (ImGui::Button("❌", ImVec2(btn_w, 0)))
-      g_Done = true;
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("Fechar o programa");
+	const float btn_w = 60.0f;
+	const float padding = ImGui::GetStyle().WindowPadding.x;
+	ImGui::SetCursorPosX(ImGui::GetWindowWidth() - btn_w - padding);
+	if (ImGui::Button("❌", ImVec2(btn_w, 0)))
+	  g_Done = true;
+	if (ImGui::IsItemHovered())
+	  ImGui::SetTooltip("Fechar o programa");
 
-    ImGui::SameLine();
-    ImGui::Text("Global Alpha Blending");
+	ImGui::SameLine();
+	ImGui::Text("Global Alpha Blending");
 
-    if (ImGui::SliderFloat("Window Opacity", &g_window_opacity, 0.1f, 1.0f))
-      SDL_SetWindowOpacity(g_Window, g_window_opacity);
+	if (ImGui::SliderFloat("Window Opacity", &g_window_opacity, 0.1f, 1.0f))
+	  SDL_SetWindowOpacity(g_Window, g_window_opacity);
 
-    if (ImGui::Button("Reset to Opaque")) {
-      g_window_opacity = 1.0f;
-      SDL_SetWindowOpacity(g_Window, 1.0f);
-    }
+	if (ImGui::Button("Reset to Opaque")) {
+	  g_window_opacity = 1.0f;
+	  SDL_SetWindowOpacity(g_Window, 1.0f);
+	}
 
-    ImGui::Separator();
+	ImGui::Separator();
 
-    if (ImGui::ColorEdit3("Background Color", g_color_ptr))
-      SaveConfig();
+	if (ImGui::ColorEdit3("Background Color", g_color_ptr))
+	  SaveConfig();
 
-    // ---- [FONTE] Escala de fonte — persistida entre sessões
-    // ---------------- io.FontGlobalScale multiplica o tamanho de todas as
-    // fontes em runtime. Não requer reconstrução do atlas — efeito imediato
-    // no próximo NewFrame().
-    //
-    // Ciclo de persistência completo:
-    //   Slider alterado → g_Settings->font_scale atualizado
-    //                   → io.FontGlobalScale aplicado (efeito visual
-    //                   imediato) → SaveConfig() salva em settings.json
-    //   Próximo início  → LoadConfig() lê font_scale
-    //                   → AllocGlobals() aplica io.FontGlobalScale =
-    //                   font_scale → primeiro frame já renderiza no tamanho
-    //                   correto
-    ImGui::Separator();
-    if (ImGui::SliderFloat(
-            "Font Scale",
-            &g_Settings->font_scale, // lido e escrito diretamente no settings
-            0.5f,    // mínimo: metade do tamanho original do atlas
-            3.0f,    // máximo: três vezes o tamanho original
-            "%.2f")) // formato numérico exibido no slider
-    {
-      // Aplica imediatamente — visível já no próximo NewFrame()
-      ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
-      SaveConfig(); // persiste em settings.json para a próxima sessão
-    }
+	// ---- [FONTE] Escala de fonte — persistida entre sessões
+	// ---------------- io.FontGlobalScale multiplica o tamanho de todas as
+	// fontes em runtime. Não requer reconstrução do atlas — efeito imediato
+	// no próximo NewFrame().
+	//
+	// Ciclo de persistência completo:
+	//   Slider alterado → g_Settings->font_scale atualizado
+	//                   → io.FontGlobalScale aplicado (efeito visual
+	//                   imediato) → SaveConfig() salva em settings.json
+	//   Próximo início  → LoadConfig() lê font_scale
+	//                   → AllocGlobals() aplica io.FontGlobalScale =
+	//                   font_scale → primeiro frame já renderiza no tamanho
+	//                   correto
+	ImGui::Separator();
+	if (ImGui::SliderFloat(
+			"Font Scale",
+			&g_Settings->font_scale, // lido e escrito diretamente no settings
+			0.5f,    // mínimo: metade do tamanho original do atlas
+			3.0f,    // máximo: três vezes o tamanho original
+			"%.2f")) // formato numérico exibido no slider
+	{
+	  // Aplica imediatamente — visível já no próximo NewFrame()
+	  ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
+	  SaveConfig(); // persiste em settings.json para a próxima sessão
+	}
 
-    // Botão de reset — volta para 1.0 e salva
-    if (ImGui::Button("Reset Font")) {
-      g_Settings->font_scale = 1.0f;          // restaura valor padrão
-      ImGui::GetStyle().FontScaleMain = 1.0f; // aplica imediatamente
-      SaveConfig();                           // persiste o reset
-    }
+	// Botão de reset — volta para 1.0 e salva
+	if (ImGui::Button("Reset Font")) {
+	  g_Settings->font_scale = 1.0f;          // restaura valor padrão
+	  ImGui::GetStyle().FontScaleMain = 1.0f; // aplica imediatamente
+	  SaveConfig();                           // persiste o reset
+	}
 
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                1000.0f / g_io->Framerate, g_io->Framerate);
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+				1000.0f / g_io->Framerate, g_io->Framerate);
 
-    ImGui::Separator();
-    WindowsConsole::render_imgui_button();
+	ImGui::Separator();
+	WindowsConsole::render_imgui_button();
 
-    if (ImGui::Checkbox("Show ImGui Console", &g_Settings->show_console))
-      SaveConfig();
+	if (ImGui::Checkbox("Show ImGui Console", &g_Settings->show_console))
+	  SaveConfig();
 
-    ImGui::Checkbox("Demo Window", &g_ShowDemo);
+	ImGui::Checkbox("Demo Window", &g_ShowDemo);
 
-    ImGui::Checkbox("Style Editor", &g_ShowStyleEd);
+	ImGui::Checkbox("Style Editor", &g_ShowStyleEd);
 
-    if (ImGui::Button("Log Test msg"))
-      g_Console->AddLog(L"Botao pressg_ionado no frame %d \U0001F680",
-                        ImGui::GetFrameCount());
+	if (ImGui::Button("Log Test msg"))
+	  g_Console->AddLog(L"Botao pressg_ionado no frame %d \U0001F680",
+						ImGui::GetFrameCount());
 
-    // ---- Exemplo de uso das imagens ---------------------------------
-    // g_Logo.IsLoaded() evita crash se o arquivo não foi encontrado.
-    // Draw, DrawFitted, DrawCentered e DrawButton são no-ops se false.
+	// ---- Exemplo de uso das imagens ---------------------------------
+	// g_Logo.IsLoaded() evita crash se o arquivo não foi encontrado.
+	// Draw, DrawFitted, DrawCentered e DrawButton são no-ops se false.
 
-    if (g_Logo.IsLoaded()) {
-      ImGui::Separator();
+	if (g_Logo.IsLoaded()) {
+	  ImGui::Separator();
 
-      // DrawCentered: centraliza horizontalmente na janela
-      g_Logo.DrawCentered(180.0f, 60.0f);
+	  // DrawCentered: centraliza horizontalmente na janela
+	  g_Logo.DrawCentered(180.0f, 60.0f);
 
-      // Tooltip com dimensões originais ao passar o mouse
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Logo %dx%d", g_Logo.GetWidth(), g_Logo.GetHeight());
-    }
+	  // Tooltip com dimensões originais ao passar o mouse
+	  if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Logo %dx%d", g_Logo.GetWidth(), g_Logo.GetHeight());
+	}
 
-    if (g_IconSettings.IsLoaded()) {
-      // DrawButton: ícone clicável (16×16) ao lado de um label
-      if (g_IconSettings.DrawButton("##btn_settings", {16.0f, 16.0f}))
-        g_ShowStyleEd = !g_ShowStyleEd; // toggle Style Editor
+	if (g_IconSettings.IsLoaded()) {
+	  // DrawButton: ícone clicável (16×16) ao lado de um label
+	  if (g_IconSettings.DrawButton("##btn_settings", {16.0f, 16.0f}))
+		g_ShowStyleEd = !g_ShowStyleEd; // toggle Style Editor
 
-      ImGui::SameLine();
-      ImGui::Text("Configuracoes");
-    }
+	  ImGui::SameLine();
+	  ImGui::Text("Configuracoes");
+	}
 
-    ImGui::Checkbox("grafico", &g_grafico);
+	ImGui::Checkbox("grafico", &g_grafico);
 
-    ImGui::Checkbox("Viewports", &bViewportDocking);
+	ImGui::Checkbox("Viewports", &bViewportDocking);
 
-    ImGui::End();
+	ImGui::End();
   }
 
   if (g_Settings->show_console) {
-    g_Console->Draw(L"Debug Console", &g_Settings->show_console);
-    if (!g_Settings->show_console)
-      SaveConfig();
+	g_Console->Draw(L"Debug Console", &g_Settings->show_console);
+	if (!g_Settings->show_console)
+	  SaveConfig();
   }
 
   if (g_ShowStyleEd)
-    g_Style->Show(nullptr, &g_ShowStyleEd);
+	g_Style->Show(nullptr, &g_ShowStyleEd);
 
   if (bViewportDocking)
-    bViewportDocking = !bViewportDocking;
+	bViewportDocking = !bViewportDocking;
 
   // grafico de exemplo do ImPlot
 
   if (g_grafico) {
 
-    ImGui::Begin("Grafico de Exemplo", &g_grafico);
+	ImGui::Begin("Grafico de Exemplo", &g_grafico);
 
-    if (ImPlot::BeginPlot("Gráfico de Exemplo")) {
+	if (ImPlot::BeginPlot("Gráfico de Exemplo")) {
 
-      // Configura os eixos (opcional)
-      ImPlot::SetupAxes("Tempo", "Valor");
+	  // Configura os eixos (opcional)
+	  ImPlot::SetupAxes("Tempo", "Valor");
 
-      // Dados estáticos para teste
-      static float x_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-      static float y_data[10] = {1, 3, 2, 4, 5, 3, 6, 5, 7, 8};
+	  // Dados estáticos para teste
+	  static float x_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+	  static float y_data[10] = {1, 3, 2, 4, 5, 3, 6, 5, 7, 8};
 
-      // Desenha a linha
-      ImPlot::PlotLine("Sinal A", x_data, y_data, 10);
+	  // Desenha a linha
+	  ImPlot::PlotLine("Sinal A", x_data, y_data, 10);
 
-      // Você também pode usar funções matemáticas em tempo real
-      ImPlot::PlotLineG(
-          "Cosseno",
-          [](int idx, void *data) {
-            float x = idx * 0.1f;
-            return ImPlotPoint(x, cosf(x));
-          },
-          nullptr, 100);
+	  // Você também pode usar funções matemáticas em tempo real
+	  ImPlot::PlotLineG(
+		  "Cosseno",
+		  [](int idx, void *data) {
+			const float x = idx * 0.1f;
+			return ImPlotPoint(x, cosf(x));
+		  },
+		  nullptr, 100);
 
-      ImPlot::EndPlot();
+	  ImPlot::EndPlot();
 
-      ImGui::End();
-    }
+	  ImGui::End();
+	}
   }
 
   return MR_OK;
@@ -274,7 +275,7 @@ MyResult App::Windows() {
  */
 void App::SaveConfig() {
   if (g_Settings)
-    rfl::json::save(m_ConfigFile, *g_Settings); // reflect-cpp gera o JSON
+	rfl::json::save(m_ConfigFile, *g_Settings); // reflect-cpp gera o JSON
 }
 
 /**
@@ -283,10 +284,10 @@ void App::SaveConfig() {
  */
 void App::LoadConfig() {
   if (!g_Settings)
-    return;
+	return;
   auto r = rfl::json::load<AppSettings>(m_ConfigFile);
   if (r)
-    *g_Settings = *r; // sobrescreve apenas se o parse teve sucesso
+	*g_Settings = *r; // sobrescreve apenas se o parse teve sucesso
 }
 
 // =============================================================================
@@ -315,11 +316,11 @@ void App::LoadConfig() {
  * @param scale       Escala DPI do display primário.
  */
 MyResult App::AllocGlobals(const ImVector<const char *> &extensions, int w,
-                           int h, float scale) {
+						   int h, float scale) {
   // ---- 1. Memory::AllocAll — todos os subsistemas na ordem correta --------
 
   if (!MR_IS_OK(Memory::Get()->AllocAll()))
-    return MR_MSGBOX_ERR_END_LOC("Memory::AllocAll falhou.");
+	return MR_MSGBOX_ERR_END_LOC("Memory::AllocAll falhou.");
 
   // ---- 2. Aliases para os objetos geridos pelo Memory --------------------
   // Estes ponteiros NÃO têm posse — Memory::DestroyAll() cuida deles
@@ -330,7 +331,7 @@ MyResult App::AllocGlobals(const ImVector<const char *> &extensions, int w,
   g_Style = Memory::Get()->GetStyleEditor();
 
   if (!g_Vulkan || !g_ImGui || !g_Console || !g_Style)
-    return MR_MSGBOX_ERR_END_LOC("Ponteiro de subsistema nulo apos AllocAll.");
+	return MR_MSGBOX_ERR_END_LOC("Ponteiro de subsistema nulo apos AllocAll.");
 
   // ---- 3. AppSettings — posse de App, delete em Close() -----------------
 
@@ -362,7 +363,7 @@ MyResult App::AllocGlobals(const ImVector<const char *> &extensions, int w,
   // que é criado por SetupWindow() dentro de AllocVulkan() (passo 1).
 
   if (!MR_IS_OK(AllocImages()))
-    return MR_CLS_WARN_LOC("AllocImages falhou — continuando sem imagens.");
+	return MR_CLS_WARN_LOC("AllocImages falhou — continuando sem imagens.");
 
   return MyResult::ok;
 }
@@ -398,20 +399,20 @@ MyResult App::AllocImages() {
   // Falha não é fatal — aplica apenas log de aviso.
 
   if (!g_Logo.Load("assets/logo.png"))
-    g_Console->AddLog(L"[Aviso] Logo nao carregou (assets/logo.png)");
+	g_Console->AddLog(L"[Aviso] Logo nao carregou (assets/logo.png)");
   else
-    g_Console->AddLog(L"[OK] Logo carregada (%dx%d)", g_Logo.GetWidth(),
-                      g_Logo.GetHeight());
+	g_Console->AddLog(L"[OK] Logo carregada (%dx%d)", g_Logo.GetWidth(),
+					  g_Logo.GetHeight());
 
   // ---- Ícone de configurações (16×16 ou 32×32) ----------------------------
   // Usado na barra de menu e toolbar.
 
   if (!g_IconSettings.Load("assets/icon_settings.png"))
-    g_Console->AddLog(
-        L"[Aviso] IconSettings nao carregou (assets/icon_settings.png)");
+	g_Console->AddLog(
+		L"[Aviso] IconSettings nao carregou (assets/icon_settings.png)");
   else
-    g_Console->AddLog(L"[OK] IconSettings carregado (%dx%d)",
-                      g_IconSettings.GetWidth(), g_IconSettings.GetHeight());
+	g_Console->AddLog(L"[OK] IconSettings carregado (%dx%d)",
+					  g_IconSettings.GetWidth(), g_IconSettings.GetHeight());
 
   // Adicione mais imagens aqui seguindo o mesmo padrão:
   // if(!g_MeuIcone.Load("assets/meu_icone.png")) { ... }
@@ -450,8 +451,8 @@ void App::Close() {
   // ---- 1. GPU idle — NUNCA destrua recursos Vulkan com frames em voo -----
 
   if (g_Vulkan && g_Vulkan->GetDevice() != VK_NULL_HANDLE) {
-    VkResult err = vkDeviceWaitIdle(g_Vulkan->GetDevice());
-    VulkanContext::CheckVkResult(err); // aborta em VK_ERROR_DEVICE_LOST
+	const VkResult err = vkDeviceWaitIdle(g_Vulkan->GetDevice());
+	VulkanContext::CheckVkResult(err); // aborta em VK_ERROR_DEVICE_LOST
   }
 
   // ---- 2. Imagens — Unload ANTES de Memory::DestroyAll -------------------
@@ -485,8 +486,8 @@ void App::Close() {
   // ---- 6 e 7. SDL --------------------------------------------------------
 
   if (g_Window) {
-    SDL_DestroyWindow(g_Window); // surface Vulkan já destruída pelo Memory
-    g_Window = nullptr;
+	SDL_DestroyWindow(g_Window); // surface Vulkan já destruída pelo Memory
+	g_Window = nullptr;
   }
   SDL_Quit();
 
@@ -509,73 +510,73 @@ void App::Close() {
  */
 MyResult App::RegisterCommands() {
   if (!g_Console)
-    return MR_MSGBOX_ERR_END_LOC("g_Console nulo em RegisterCommands.");
+	return MR_MSGBOX_ERR_END_LOC("g_Console nulo em RegisterCommands.");
   if (!g_Vulkan)
-    return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo em RegisterCommands.");
+	return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo em RegisterCommands.");
 
   // EXIT / QUIT — encerram o MainLoop via g_Done
   auto cmd_quit = [this]() {
-    g_Console->AddLog(L"Saindo...");
-    g_Done = true;
+	g_Console->AddLog(L"Saindo...");
+	g_Done = true;
   };
   g_Console->RegisterBuiltIn(L"EXIT", cmd_quit);
   g_Console->RegisterCommand(L"QUIT", cmd_quit);
 
   // BREAK — útil com debugger anexado
   g_Console->RegisterCommand(L"BREAK", L"USAR SOMENTE EM DEBUG",
-                             []() { __debugbreak(); });
+							 []() { __debugbreak(); });
 
   // SPECS — hardware + APIs gráficas
   g_Console->RegisterCommand(
-      L"SPECS", L"Exibe as especificacoes de hardware do PC.", [this]() {
-        SystemInfo::Collect(g_Vulkan, L"Vulkan").PrintToConsole(g_Console);
-      });
+	  L"SPECS", L"Exibe as especificacoes de hardware do PC.", [this]() {
+		SystemInfo::Collect(g_Vulkan, L"Vulkan").PrintToConsole(g_Console);
+	  });
 
   // VSYNC — alterna VSync
   g_Console->RegisterCommand(L"VSYNC", L"Liga ou desliga o VSync.", [this]() {
-    bool novo = !g_Vulkan->GetVSync();
-    g_Vulkan->SetVSync(novo);
-    g_Console->AddLog(novo ? L"VSync ON" : L"VSync OFF");
+	const bool novo = !g_Vulkan->GetVSync();
+	g_Vulkan->SetVSync(novo);
+	g_Console->AddLog(novo ? L"VSync ON" : L"VSync OFF");
   });
 
   // NOVIEWPORTS — desabilita viewports flutuantes em tempo de execução
   g_Console->RegisterCommand(
-      L"NOVIEWPORTS",
-      L"Desabilita os viewports flutuantes do ImGui (janelas fora da main "
-      L"window).",
-      [this]() {
-        this->DisableViewportDocking(); // chama o método de App que altera o
-                                        // estilo
-        if (bViewportDocking)
-          bViewportDocking = !bViewportDocking; // global
-      });
+	  L"NOVIEWPORTS",
+	  L"Desabilita os viewports flutuantes do ImGui (janelas fora da main "
+	  L"window).",
+	  [this]() {
+		this->DisableViewportDocking(); // chama o método de App que altera o
+										// estilo
+		if (bViewportDocking)
+		  bViewportDocking = !bViewportDocking; // global
+	  });
 
   g_Console->RegisterCommand(
-      L"forceexit",
-      L"FORÇA o encerramento imediato do programa (sem cleanup, sem salvar "
-      L"configurações).",
-      []() {
-        g_App->g_Console->AddLog(L"FORCE EXIT: Encerrando imediatamente...");
-        std::exit(0); // encerra o processo sem chamar destrutores ou cleanup
-      });
+	  L"forceexit",
+	  L"FORÇA o encerramento imediato do programa (sem cleanup, sem salvar "
+	  L"configurações).",
+	  []() {
+		g_App->g_Console->AddLog(L"FORCE EXIT: Encerrando imediatamente...");
+		std::exit(0); // encerra o processo sem chamar destrutores ou cleanup
+	  });
   g_Console->RegisterCommand(L"implot", L"Mostra funcionalidades do ImPlot",
-                             []() { ImPlot::ShowDemoWindow(); });
+							 []() { ImPlot::ShowDemoWindow(); });
 
   g_Console->RegisterCommand(L"TestEngine",
-                             L"Mostra funcionalidades do Test Engine",
-                             []() { /*testEnginemain(0, nullptr);*/ });
+							 L"Mostra funcionalidades do Test Engine",
+							 []() { /*testEnginemain(0, nullptr);*/ });
 
   g_Console->RegisterCommand(L"Abort",      
-      L"Aborta o programa com falha (útil para testar handlers de crash)",
-      []() { std::abort(); });
+	  L"Aborta o programa com falha (útil para testar handlers de crash)",
+	  []() { std::abort(); });
 
-      g_Console->RegisterCommand(L"System Pause",      
-      L"Pausa o sistema atraves do windows (útil para depuração)",
-      []() { std::system("pause"); });
+	  g_Console->RegisterCommand(L"System Pause",      
+	  L"Pausa o sistema atraves do windows (útil para depuração)",
+	  []() { std::system("pause"); });
 
-       g_Console->RegisterCommand(L"Cpp Pause",      
-      L"Pausa o sistema atraves do proprío c++ (útil para depuração)",
-      []() { std::cin.get(); });
+	   g_Console->RegisterCommand(L"Cpp Pause",      
+	  L"Pausa o sistema atraves do proprío c++ (útil para depuração)",
+	  []() { std::cin.get(); });
   return MyResult::ok;
 }
 
@@ -589,23 +590,23 @@ MyResult App::RegisterCommands() {
  */
 MyResult App::MainLoop() {
   g_io = &g_ImGui->GetIO();
-  bool g_grafico = false;
+  const bool g_grafico = false;
 
-  bool font_rt = (g_io->Fonts && g_io->Fonts->FontLoader);
+  const bool font_rt = (g_io->Fonts && g_io->Fonts->FontLoader);
   g_Console->AddLog(font_rt ? L"\n[RT] FontLoader ativo\n"
-                            : L"[RT] FontLoader: stb_truetype (padrao)\n");
+							: L"[RT] FontLoader: stb_truetype (padrao)\n");
 
   float *color_ptr = g_Settings->clear_color.data();
   g_color_ptr = color_ptr;
-  float window_opacity = 1.0f;
+  const float window_opacity = 1.0f;
 
   g_window_opacity =
-      window_opacity; // inicializa a variável global para o slider
+	  window_opacity; // inicializa a variável global para o slider
 
   // No topo do seu MainLoop (fora do loop while)
   static ScrollingBuffer sdata =
-      ScrollingBuffer::ScrollingBuffer(); // Você precisaria definir essa struct
-                                          // auxiliar do ImPlot
+	  ScrollingBuffer::ScrollingBuffer(); // Você precisaria definir essa struct
+										  // auxiliar do ImPlot
   float t = 0;
   ImPlotFlags spec;
   spec = ImPlotFlags_None;
@@ -637,75 +638,75 @@ MyResult App::MainLoop() {
   // }
   while (!g_Done) {
 
-    // ----------------------------------------------------------------
-    // 1. Eventos SDL
-    // ----------------------------------------------------------------
+	// ----------------------------------------------------------------
+	// 1. Eventos SDL
+	// ----------------------------------------------------------------
 
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      ImGui_ImplSDL3_ProcessEvent(&event);
+	SDL_Event event;
+	while (SDL_PollEvent(&event)) {
+	  ImGui_ImplSDL3_ProcessEvent(&event);
 
-      if (event.type == SDL_EVENT_QUIT)
-        g_Done = true;
+	  if (event.type == SDL_EVENT_QUIT)
+		g_Done = true;
 
-      if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
-          event.window.windowID == SDL_GetWindowID(g_Window))
-        g_Done = true;
+	  if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+		  event.window.windowID == SDL_GetWindowID(g_Window))
+		g_Done = true;
 
-      if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F11) {
-        g_IsFullscreen = !g_IsFullscreen;
-        SDL_SetWindowFullscreen(g_Window, g_IsFullscreen);
-      }
-    }
+	  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F11) {
+		g_IsFullscreen = !g_IsFullscreen;
+		SDL_SetWindowFullscreen(g_Window, g_IsFullscreen);
+	  }
+	}
 
-    if (SDL_GetWindowFlags(g_Window) & SDL_WINDOW_MINIMIZED) {
-      SDL_Delay(10);
-      continue;
-    }
+	if (SDL_GetWindowFlags(g_Window) & SDL_WINDOW_MINIMIZED) {
+	  SDL_Delay(10);
+	  continue;
+	}
 
-    // ----------------------------------------------------------------
-    // 2. Rebuild da swapchain
-    // ----------------------------------------------------------------
+	// ----------------------------------------------------------------
+	// 2. Rebuild da swapchain
+	// ----------------------------------------------------------------
 
-    int fb_w, fb_h;
-    SDL_GetWindowSize(g_Window, &fb_w, &fb_h);
-    ImGui_ImplVulkanH_Window *wd = g_Vulkan->GetMainWindowData();
+	int fb_w, fb_h;
+	SDL_GetWindowSize(g_Window, &fb_w, &fb_h);
+	ImGui_ImplVulkanH_Window *wd = g_Vulkan->GetMainWindowData();
 
-    if (fb_w > 0 && fb_h > 0 &&
-        (g_Vulkan->NeedsSwapChainRebuild() || wd->Width != fb_w ||
-         wd->Height != fb_h))
-      g_Vulkan->RebuildSwapChain(fb_w, fb_h);
+	if (fb_w > 0 && fb_h > 0 &&
+		(g_Vulkan->NeedsSwapChainRebuild() || wd->Width != fb_w ||
+		 wd->Height != fb_h))
+	  g_Vulkan->RebuildSwapChain(fb_w, fb_h);
 
-    Windows();
+	Windows();
 
-    // ----------------------------------------------------------------
-    // 5. Render Vulkan
-    // ----------------------------------------------------------------
+	// ----------------------------------------------------------------
+	// 5. Render Vulkan
+	// ----------------------------------------------------------------
 
-    g_ImGui->Render();
+	g_ImGui->Render();
 
-    ImDrawData *draw_data = ImGui::GetDrawData();
-    const bool minimized =
-        (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
+	ImDrawData *draw_data = ImGui::GetDrawData();
+	const bool minimized =
+		(draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
 
-    wd->ClearValue.color.float32[0] = color_ptr[0] * color_ptr[3];
-    wd->ClearValue.color.float32[1] = color_ptr[1] * color_ptr[3];
-    wd->ClearValue.color.float32[2] = color_ptr[2] * color_ptr[3];
-    wd->ClearValue.color.float32[3] = color_ptr[3];
+	wd->ClearValue.color.float32[0] = color_ptr[0] * color_ptr[3];
+	wd->ClearValue.color.float32[1] = color_ptr[1] * color_ptr[3];
+	wd->ClearValue.color.float32[2] = color_ptr[2] * color_ptr[3];
+	wd->ClearValue.color.float32[3] = color_ptr[3];
 
-    if (!minimized)
-      g_Vulkan->FrameRender(draw_data);
-    if (g_ImGui->WantsViewports())
-      g_ImGui->RenderPlatformWindows();
-    if (!minimized)
-      g_Vulkan->FramePresent();
+	if (!minimized)
+	  g_Vulkan->FrameRender(draw_data);
+	if (g_ImGui->WantsViewports())
+	  g_ImGui->RenderPlatformWindows();
+	if (!minimized)
+	  g_Vulkan->FramePresent();
   }
 
   return MyResult::ok;
 }
 
 MyResult App::GetDesktopResolution(int& horizontal, int& vertical) {
-      RECT desktop;
+	  RECT desktop;
    // Get a handle to the desktop window
    const HWND hDesktop = GetDesktopWindow();
    // Get the size of screen to the variable desktop
@@ -730,54 +731,54 @@ MyResult App::GetDesktopResolution(int& horizontal, int& vertical) {
 MyResult App::run() {
 
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))  
-    MR_MSGBOX_ERR_END_LOC("Failed to initialize SDL: " +
-                                 StrToWStr(SDL_GetError()));
-                                 
+	MR_MSGBOX_ERR_END_LOC("Failed to initialize SDL: " +
+								 StrToWStr(SDL_GetError()));
+								 
 
-  float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+  const float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 
-  SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE |
-                          SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY |
-                          SDL_WINDOW_MAXIMIZED;
-    
+  const SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE |
+						  SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY |
+						  SDL_WINDOW_MAXIMIZED;
+	
   int desktop_w, desktop_h;
 
   if (!MR_IS_OK(GetDesktopResolution(desktop_w, desktop_h)) || desktop_w <= 0 || desktop_h <= 0) {
-    SDL_Quit();
-    return MR_MSGBOX_ERR_END_LOC("Failed to get desktop resolution.");
+	SDL_Quit();
+	return MR_MSGBOX_ERR_END_LOC("Failed to get desktop resolution.");
   }
 
   g_Window =
-      SDL_CreateWindow("Dear ImGui SDL3+Vulkan", static_cast<int>(desktop_w * scale),
-                       static_cast<int>(desktop_h * scale), flags);
+	  SDL_CreateWindow("Dear ImGui SDL3+Vulkan", static_cast<int>(desktop_w * scale),
+					   static_cast<int>(desktop_h * scale), flags);
 
   if (!g_Window)
-    return MR_MSGBOX_ERR_END_LOC("Failed to create SDL window: " +
-                                 StrToWStr(SDL_GetError()));
+	return MR_MSGBOX_ERR_END_LOC("Failed to create SDL window: " +
+								 StrToWStr(SDL_GetError()));
 
   ImVector<const char *> extensions;
   {
-    uint32_t n = 0;
-    const char *const *ext = SDL_Vulkan_GetInstanceExtensions(&n);
-    for (uint32_t i = 0; i < n; ++i)
-      extensions.push_back(ext[i]);
+	uint32_t n = 0;
+	const char *const *ext = SDL_Vulkan_GetInstanceExtensions(&n);
+	for (uint32_t i = 0; i < n; ++i)
+	  extensions.push_back(ext[i]);
   }
 
   int w, h;
   SDL_GetWindowSize(g_Window, &w, &h);
 
   if (!MR_IS_OK(AllocGlobals(extensions, w, h, scale))) {
-    Close();
-    return MR_MSGBOX_ERR_END_LOC("AllocGlobals falhou.");
+	Close();
+	return MR_MSGBOX_ERR_END_LOC("AllocGlobals falhou.");
   }
 
   SDL_SetWindowPosition(g_Window, SDL_WINDOWPOS_CENTERED,
-                        SDL_WINDOWPOS_CENTERED);
+						SDL_WINDOWPOS_CENTERED);
   SDL_ShowWindow(g_Window);
 
   if (!MR_IS_OK(RegisterCommands())) {
-    Close();
-    return MR_MSGBOX_ERR_END_LOC("RegisterCommands falhou.");
+	Close();
+	return MR_MSGBOX_ERR_END_LOC("RegisterCommands falhou.");
   }
 
   MyResult result = MainLoop();
@@ -801,26 +802,26 @@ void App::DisableViewportDocking() {
   // imgui_internal.h — incluso aqui apenas para esta operação.
   ImGuiContext *ctx = ImGui::GetCurrentContext();
   ImVec2 main_pos =
-      ImGui::GetMainViewport()->Pos; // origem (0,0 em janela normal)
+	  ImGui::GetMainViewport()->Pos; // origem (0,0 em janela normal)
   ImVec2 main_size =
-      ImGui::GetMainViewport()->Size; // largura e altura da janela SDL
+	  ImGui::GetMainViewport()->Size; // largura e altura da janela SDL
 
   for (ImGuiWindow *win : ctx->Windows) {
-    if (!win || win->Hidden)
-      continue; // ignora janelas invisíveis
+	if (!win || win->Hidden)
+	  continue; // ignora janelas invisíveis
 
-    // Calcula a posição máxima permitida para que a janela
-    // não ultrapasse o canto inferior direito do viewport
-    float max_x = main_pos.x + main_size.x - win->Size.x;
-    float max_y = main_pos.y + main_size.y - win->Size.y;
+	// Calcula a posição máxima permitida para que a janela
+	// não ultrapasse o canto inferior direito do viewport
+	float max_x = main_pos.x + main_size.x - win->Size.x;
+	float max_y = main_pos.y + main_size.y - win->Size.y;
 
-    // ImClamp(valor, min, max) — mantém o valor dentro do intervalo
-    win->Pos.x = ImClamp(win->Pos.x, main_pos.x, ImMax(main_pos.x, max_x));
-    win->Pos.y = ImClamp(win->Pos.y, main_pos.y, ImMax(main_pos.y, max_y));
+	// ImClamp(valor, min, max) — mantém o valor dentro do intervalo
+	win->Pos.x = ImClamp(win->Pos.x, main_pos.x, ImMax(main_pos.x, max_x));
+	win->Pos.y = ImClamp(win->Pos.y, main_pos.y, ImMax(main_pos.y, max_y));
   }
 
   g_App->g_Console->AddLog(
-      L"Viewports desabilitados — janelas reposicionadas.");
+	  L"Viewports desabilitados — janelas reposicionadas.");
 }
 
 ScrollingBuffer::ScrollingBuffer() : MaxSize(2000), Offset(), Data({}) {}
@@ -833,16 +834,16 @@ ScrollingBuffer::ScrollingBuffer(int max_size) : ScrollingBuffer() {
 
 void ScrollingBuffer::AddPoint(float x, float y) {
   if (Data.size() < MaxSize)
-    Data.push_back(ImVec2(x, y));
+	Data.push_back(ImVec2(x, y));
   else {
-    Data[Offset] = ImVec2(x, y);
-    Offset = (Offset + 1) % MaxSize;
+	Data[Offset] = ImVec2(x, y);
+	Offset = (Offset + 1) % MaxSize;
   }
 }
 
 void ScrollingBuffer::Erase() {
   if (Data.size() > 0) {
-    Data.shrink(0);
-    Offset = 0;
+	Data.shrink(0);
+	Offset = 0;
   }
 }

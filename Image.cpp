@@ -512,7 +512,7 @@ bool Image::UploadToGPU(unsigned char* pixels, int w, int h) {
     // Usa o command pool do frame atual — mesma abordagem do exemplo oficial.
     // g_MainWindowData.Frames[FrameIndex].CommandPool
     ImGui_ImplVulkanH_Window* wd = g_App->g_Vulkan->GetMainWindowData();
-    VkCommandPool   cmd_pool     = wd->Frames[wd->FrameIndex].CommandPool;
+    VkCommandPool   cmd_pool     = wd->Frames[static_cast<uint32_t>(wd->FrameIndex)].CommandPool;
     VkCommandBuffer cmd_buf      = VK_NULL_HANDLE;
 
     {

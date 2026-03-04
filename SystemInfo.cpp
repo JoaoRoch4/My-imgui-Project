@@ -108,6 +108,17 @@ static std::wstring ReadCpuNameFromRegistry() {
     return name;
 }
 
+//static std::wstring GetMonitorName(SDL_DisplayID display_id){
+//// Log de inicialização do monitor detectado
+//    printf("\n=== Monitor de Inicializacao ===\n");
+//    printf("  Display ID:    %u\n",  (unsigned)m_display_id);
+//    printf("  Resolucao:     %d x %d px\n", m_display_w, m_display_h);
+//    printf("  Scale (DPI):   %.2fx  (%.0f DPI)\n",
+//        m_window_scale, m_window_scale * 96.0f);  // 96 DPI = 100%
+//    printf("  Primario:      %s\n",
+//        (m_display_id == SDL_GetPrimaryDisplay()) ? "sim" : "nao");
+//    printf("================================\n\n");
+//}
 /**
  * @brief Conta núcleos FÍSICOS via GetLogicalProcessorInformation.
  *

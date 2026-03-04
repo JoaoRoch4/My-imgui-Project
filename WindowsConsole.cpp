@@ -44,10 +44,31 @@ void WindowsConsole::init(int hotkey) {
 
     // Redireciona os streams padrão para a janela recém-criada.
     // CONOUT$ é o nome especial Win32 para o buffer de saída do console.
-    freopen_s((FILE**) stdout, "CONOUT$", "w", stdout); // redireciona stdout
-    freopen_s((FILE**) stderr, "CONOUT$", "w", stderr); // redireciona stderr
-    freopen_s((FILE**) stdin, "CONIN$", "r", stdin);  // redireciona stdin
+    freopen_s(std::bit_cast<FILE**> stdout, "CONOUT$", "w", stdout); // redireciona stdout
+    freopen_s(std::bit_cast<FILE**> stderr, "CONOUT$", "w", stderr); // redireciona stderr
+    freopen_s(std::bit_cast<FILE**> stdin, "CONIN$", "r", stdin);  // redireciona stdin
 
+    setlocale(LC_ALL, "utf-8"); // para suporte a caracteres acentuados no console
+	SetConsoleOutputCP(CP_UTF8); // para entrada UTF-8 no console
+	SetConsoleCP(CP_UTF8); // para saída UTF-8 no console
+    SetConsoleTitle(L"My imgui aplication Windows Console"); // define o título da janela do console
+     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_FONT_INFOEX cfi{};
+    cfi.cbSize = sizeof(cfi);
+
+    // Obtém a configuração atual
+    GetCurrentConsoleFontEx(hOut, FALSE, &cfi);
+
+    // Altera propriedades específicas
+    cfi.dwFontSize.X = NULL;                  // Largura (0 permite ajuste automático baseado na altura)
+    cfi.dwFontSize.Y = 24;                 // Altura da fonte
+    cfi.FontFamily = FF_DONTCARE;
+    cfi.FontWeight = FW_MEDIUM;              // Define como negrito (700)
+
+    wcscpy_s(cfi.FaceName, L"Lucida Console"); // Nome da fonte (Unicode)
+
+    // Aplica a nova fonte
+    SetCurrentConsoleFontEx(hOut, FALSE, &cfi);
     s_hwnd = GetConsoleWindow(); // obtém o HWND da janela para ShowWindow
 
     ShowWindow(s_hwnd, SW_HIDE); // começa escondido — usuário decide quando abrir
