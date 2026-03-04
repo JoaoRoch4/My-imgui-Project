@@ -15,26 +15,24 @@
  *   App::App()   → g_App = this     (atribui)
  *   App::Close() → g_App = nullptr  (anula, previne use-after-free)
  *
+ * DIVISÃO run() / AllocGlobals()
+ * --------------------------------
+ * run()          → SDL + janela + Memory::AllocAll(window)
+ * AllocGlobals() → aliases dos ponteiros Memory + AppSettings + MenuBar + Images
+ *
+ * Memory::AllocAll() aloca os recursos (Vulkan, ImGui, Console, etc.).
+ * AllocGlobals() lê esses recursos via Memory::Get()->Get*() e os copia
+ * para os membros de App (g_Vulkan, g_ImGui, g_Console, g_Style) — que são
+ * aliases SEM posse; a posse continua no Memory singleton.
+ *
+ * Por que aliases e não Memory::Get()->Get*() direto no loop?
+ *   → Evita uma chamada de função extra por acesso no hot-path do frame.
+ *   → Mantém a sintaxe curta: g_Vulkan->X em vez de Memory::Get()->GetVulkan()->X.
+ *
  * PERSISTÊNCIA DE ESCALA DE FONTE
  * --------------------------------
- * io.FontGlobalScale é um multiplicador runtime aplicado a todas as fontes
- * sem reconstruir o atlas de texturas. O valor é guardado em
- * g_Settings->font_scale (AppSettings) e persistido em settings.json.
- *
- * Pontos onde a escala participa do ciclo de vida:
- *
- *  1. AllocGlobals() — após LoadConfig():
- *       io.FontGlobalScale = g_Settings->font_scale;
- *     → garante que o PRIMEIRO frame já renderiza no tamanho correto,
- *       sem nenhum "piscar" no tamanho padrão 1.0.
- *
- *  2. MainLoop() — slider "Font Scale":
- *       io.FontGlobalScale = g_Settings->font_scale;
- *       SaveConfig();
- *     → aplica imediatamente ao mover o slider e salva em disco.
- *
- *  3. SaveConfig() / LoadConfig() — rfl::json serializa font_scale
- *     como campo normal de AppSettings, igual a clear_color e show_console.
+ * io.FontGlobalScale é aplicado em AllocGlobals() logo após LoadConfig()
+ * para que o PRIMEIRO frame já renderize no tamanho salvo — sem "piscar".
  */
 
 #include "pch.hpp"
@@ -48,6 +46,10 @@
 #include "ImGuiContext_Wrapper.hpp"
 #include "SystemInfo.hpp"
 
+#include <implot3d.h>
+	#include <implot3d_internal.h>
+    #include<implot3d_demo.cpp>
+
 // =============================================================================
 // Definição do ponteiro global — uma única vez em todo o projeto
 // =============================================================================
@@ -58,7 +60,7 @@
  * Declarada como "extern App* g_App" em App.hpp.
  * Qualquer .cpp que inclua App.hpp e acesse g_App resolve para este símbolo.
  */
-App *g_App = nullptr;
+App* g_App = nullptr;
 
 // =============================================================================
 // Construtor
@@ -71,301 +73,241 @@ App *g_App = nullptr;
  * garantindo que MenuBar e outros possam acessar a instância desde o início.
  */
 App::App()
-	: bViewportDocking(false), g_Done(false), g_ShowDemo(true),
-	  g_ShowStyleEd(false), g_IsFullscreen(false), g_grafico(false),
-	  g_window_opacity(false), g_color_ptr(nullptr), g_io(nullptr),
-	  g_Vulkan(nullptr), g_ImGui(nullptr), g_Console(nullptr), g_Style(nullptr),
-	  g_MenuBar(nullptr), g_Settings(nullptr), g_Window(nullptr),
-	  m_ConfigFile("settings.json") {
-  // Expõe esta instância globalmente para que MenuBar.cpp e outros
-  // possam acessar os membros públicos via g_App->membro
-  g_App = this;
-  InitRenderDoc();
+    : started(false)
+    , bViewportDocking(false)
+    , g_Done(false)
+    , g_ShowDemo(true)
+    , g_ShowStyleEd(false)
+    , g_IsFullscreen(false)
+    , g_grafico(false)
+    , g_window_opacity(1.0f)   // 1.0 = totalmente opaco
+    , g_color_ptr(nullptr)
+    , g_io(nullptr)
+    , g_Vulkan(nullptr)        // alias — preenchido em AllocGlobals()
+    , g_ImGui(nullptr)         // alias — preenchido em AllocGlobals()
+    , g_Console(nullptr)       // alias — preenchido em AllocGlobals()
+    , g_Style(nullptr)         // alias — preenchido em AllocGlobals()
+    , g_MenuBar(nullptr)       // posse de App — alocado em AllocGlobals()
+    , g_Settings(nullptr)      // posse de App — alocado em AllocGlobals()
+    , g_Window(nullptr)        // preenchido em run() após SDL_CreateWindow
+    , m_ConfigFile("settings.json")
+{
+    // Expõe esta instância globalmente para que MenuBar.cpp e outros
+    // possam acessar os membros públicos via g_App->membro
+	
+    
 }
 
-MyResult App::Windows() {
-
-  // ----------------------------------------------------------------
-  // 3. Hotkey do console externo
-  // ----------------------------------------------------------------
-
-  WindowsConsole::poll_hotkey();
-
-  // ----------------------------------------------------------------
-  // 4. Frame ImGui
-  // ----------------------------------------------------------------
-
-  g_ImGui->NewFrame();
-
-  g_MenuBar->Draw(); // acessa g_App->g_Done, g_App->g_Settings, etc.
-
-  if (g_ShowDemo)
-	ImGui::ShowDemoWindow(&g_ShowDemo);
-
-  {
-	ImGui::Begin("Window Controls");
-
-	const float btn_w = 60.0f;
-	const float padding = ImGui::GetStyle().WindowPadding.x;
-	ImGui::SetCursorPosX(ImGui::GetWindowWidth() - btn_w - padding);
-	if (ImGui::Button("❌", ImVec2(btn_w, 0)))
-	  g_Done = true;
-	if (ImGui::IsItemHovered())
-	  ImGui::SetTooltip("Fechar o programa");
-
-	ImGui::SameLine();
-	ImGui::Text("Global Alpha Blending");
-
-	if (ImGui::SliderFloat("Window Opacity", &g_window_opacity, 0.1f, 1.0f))
-	  SDL_SetWindowOpacity(g_Window, g_window_opacity);
-
-	if (ImGui::Button("Reset to Opaque")) {
-	  g_window_opacity = 1.0f;
-	  SDL_SetWindowOpacity(g_Window, 1.0f);
-	}
-
-	ImGui::Separator();
-
-	if (ImGui::ColorEdit3("Background Color", g_color_ptr))
-	  SaveConfig();
-
-	// ---- [FONTE] Escala de fonte — persistida entre sessões
-	// ---------------- io.FontGlobalScale multiplica o tamanho de todas as
-	// fontes em runtime. Não requer reconstrução do atlas — efeito imediato
-	// no próximo NewFrame().
-	//
-	// Ciclo de persistência completo:
-	//   Slider alterado → g_Settings->font_scale atualizado
-	//                   → io.FontGlobalScale aplicado (efeito visual
-	//                   imediato) → SaveConfig() salva em settings.json
-	//   Próximo início  → LoadConfig() lê font_scale
-	//                   → AllocGlobals() aplica io.FontGlobalScale =
-	//                   font_scale → primeiro frame já renderiza no tamanho
-	//                   correto
-	ImGui::Separator();
-	if (ImGui::SliderFloat(
-			"Font Scale",
-			&g_Settings->font_scale, // lido e escrito diretamente no settings
-			0.5f,    // mínimo: metade do tamanho original do atlas
-			3.0f,    // máximo: três vezes o tamanho original
-			"%.2f")) // formato numérico exibido no slider
-	{
-	  // Aplica imediatamente — visível já no próximo NewFrame()
-	  ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
-	  SaveConfig(); // persiste em settings.json para a próxima sessão
-	}
-
-	// Botão de reset — volta para 1.0 e salva
-	if (ImGui::Button("Reset Font")) {
-	  g_Settings->font_scale = 1.0f;          // restaura valor padrão
-	  ImGui::GetStyle().FontScaleMain = 1.0f; // aplica imediatamente
-	  SaveConfig();                           // persiste o reset
-	}
-
-	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-				1000.0f / g_io->Framerate, g_io->Framerate);
-
-	ImGui::Separator();
-	WindowsConsole::render_imgui_button();
-
-	if (ImGui::Checkbox("Show ImGui Console", &g_Settings->show_console))
-	  SaveConfig();
-
-	ImGui::Checkbox("Demo Window", &g_ShowDemo);
-
-	ImGui::Checkbox("Style Editor", &g_ShowStyleEd);
-
-	if (ImGui::Button("Log Test msg"))
-	  g_Console->AddLog(L"Botao pressg_ionado no frame %d \U0001F680",
-						ImGui::GetFrameCount());
-
-	// ---- Exemplo de uso das imagens ---------------------------------
-	// g_Logo.IsLoaded() evita crash se o arquivo não foi encontrado.
-	// Draw, DrawFitted, DrawCentered e DrawButton são no-ops se false.
-
-	if (g_Logo.IsLoaded()) {
-	  ImGui::Separator();
-
-	  // DrawCentered: centraliza horizontalmente na janela
-	  g_Logo.DrawCentered(180.0f, 60.0f);
-
-	  // Tooltip com dimensões originais ao passar o mouse
-	  if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("Logo %dx%d", g_Logo.GetWidth(), g_Logo.GetHeight());
-	}
-
-	if (g_IconSettings.IsLoaded()) {
-	  // DrawButton: ícone clicável (16×16) ao lado de um label
-	  if (g_IconSettings.DrawButton("##btn_settings", {16.0f, 16.0f}))
-		g_ShowStyleEd = !g_ShowStyleEd; // toggle Style Editor
-
-	  ImGui::SameLine();
-	  ImGui::Text("Configuracoes");
-	}
-
-	ImGui::Checkbox("grafico", &g_grafico);
-
-	ImGui::Checkbox("Viewports", &bViewportDocking);
-
-	ImGui::End();
-  }
-
-  if (g_Settings->show_console) {
-	g_Console->Draw(L"Debug Console", &g_Settings->show_console);
-	if (!g_Settings->show_console)
-	  SaveConfig();
-  }
-
-  if (g_ShowStyleEd)
-	g_Style->Show(nullptr, &g_ShowStyleEd);
-
-  if (bViewportDocking)
-	bViewportDocking = !bViewportDocking;
-
-  // grafico de exemplo do ImPlot
-
-  if (g_grafico) {
-
-	ImGui::Begin("Grafico de Exemplo", &g_grafico);
-
-	if (ImPlot::BeginPlot("Gráfico de Exemplo")) {
-
-	  // Configura os eixos (opcional)
-	  ImPlot::SetupAxes("Tempo", "Valor");
-
-	  // Dados estáticos para teste
-	  static float x_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-	  static float y_data[10] = {1, 3, 2, 4, 5, 3, 6, 5, 7, 8};
-
-	  // Desenha a linha
-	  ImPlot::PlotLine("Sinal A", x_data, y_data, 10);
-
-	  // Você também pode usar funções matemáticas em tempo real
-	  ImPlot::PlotLineG(
-		  "Cosseno",
-		  [](int idx, void *data) {
-			const float x = idx * 0.1f;
-			return ImPlotPoint(x, cosf(x));
-		  },
-		  nullptr, 100);
-
-	  ImPlot::EndPlot();
-
-	  ImGui::End();
-	}
-  }
-
-  return MR_OK;
+void App::Startup() {
+g_App = Memory::Get()->GetApp();
+    InitRenderDoc();
+	started = true;
 }
 
 // =============================================================================
-// Persistência de configurações
+// run() — ponto de entrada: SDL + janela + AllocAll + AllocGlobals + loop
 // =============================================================================
 
 /**
- * @brief Serializa *g_Settings para m_ConfigFile via reflect-cpp.
+ * @brief Inicializa SDL, cria a janela, aloca recursos e roda o loop principal.
  *
- * Chamado quando o usuário altera qualquer configuração persistida:
- *   • cor de fundo (ColorEdit3)
- *   • show_console (Checkbox)
- *   • font_scale (SliderFloat)  ← adicionado para persistência de fonte
+ * DIVISÃO DE RESPONSABILIDADES
+ * -----------------------------
+ *  run()          → SDL_Init, SDL_CreateWindow, Memory::AllocAll, AllocGlobals,
+ *                   SDL_ShowWindow, RegisterCommands, MainLoop
+ *  AllocGlobals() → aliases (g_Vulkan…g_Style), AppSettings, MenuBar, AllocImages
+ *  wWinMain       → Memory::DestroyAll, Memory::Shutdown, SDL_DestroyWindow, SDL_Quit
  *
- * reflect-cpp serializa todos os campos de AppSettings automaticamente,
- * incluindo font_scale, sem nenhuma linha extra aqui.
+ * POR QUE SDL_DestroyWindow FICA EM wWinMain E NÃO AQUI?
+ * --------------------------------------------------------
+ * Memory::DestroyAll() chama VulkanContext::CleanupWindow() que usa g_Window
+ * para destruir a VkSurfaceKHR antes da VkInstance.
+ * Se SDL_DestroyWindow fosse chamado aqui, DestroyAll() em wWinMain receberia
+ * um handle inválido → crash/UB. Por isso a janela sobrevive até depois de
+ * DestroyAll() retornar.
  */
-void App::SaveConfig() {
-  if (g_Settings)
-	rfl::json::save(m_ConfigFile, *g_Settings); // reflect-cpp gera o JSON
-}
+MyResult App::run() {
+	if(!started)
+        return MR_MSGBOX_ERR_END_LOC("App::Startup() must be called before run().");
+    // ---- 1. Inicializa o SDL -----------------------------------------------
 
-/**
- * @brief Carrega m_ConfigFile em *g_Settings.
- * Se o arquivo não existir ou estiver corrompido, mantém os defaults.
- */
-void App::LoadConfig() {
-  if (!g_Settings)
-	return;
-  auto r = rfl::json::load<AppSettings>(m_ConfigFile);
-  if (r)
-	*g_Settings = *r; // sobrescreve apenas se o parse teve sucesso
+    // SDL_INIT_VIDEO:   janela + teclado + mouse
+    // SDL_INIT_GAMEPAD: controles (requerido pelo backend ImGui SDL3)
+    if(!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
+        return MR_MSGBOX_ERR_END_LOC(
+            "Failed to initialize SDL: " + StrToWStr(SDL_GetError()));
+
+    // ---- 2. Escala DPI do monitor primário --------------------------------
+    // Usada APENAS para o tamanho inicial da janela.
+    // AllocGlobals() detecta o monitor REAL da janela após AllocAll().
+    const float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+
+    // ---- 3. Resolução do desktop ------------------------------------------
+    // Garante um tamanho inicial explícito — alguns drivers criam a janela
+    // com tamanho zero se só SDL_WINDOW_MAXIMIZED for passado.
+    int desktop_w = 0;
+    int desktop_h = 0;
+    if(!MR_IS_OK(GetDesktopResolution(desktop_w, desktop_h)) ||
+        desktop_w <= 0 || desktop_h <= 0) {
+        SDL_Quit();
+        return MR_MSGBOX_ERR_END_LOC("Failed to get desktop resolution.");
+    }
+
+    // ---- 4. Cria a janela SDL ----------------------------------------------
+
+    // SDL_WINDOW_VULKAN            → habilita VkSurfaceKHR via SDL
+    // SDL_WINDOW_RESIZABLE         → usuário pode redimensionar
+    // SDL_WINDOW_HIDDEN            → oculta até SDL_ShowWindow()
+    // SDL_WINDOW_HIGH_PIXEL_DENSITY → pixels físicos em monitores HiDPI
+    // SDL_WINDOW_MAXIMIZED         → maximizada ao ser exibida
+    constexpr SDL_WindowFlags flags =
+        SDL_WINDOW_VULKAN             |
+        SDL_WINDOW_RESIZABLE          |
+        SDL_WINDOW_HIDDEN             |
+        SDL_WINDOW_HIGH_PIXEL_DENSITY |
+        SDL_WINDOW_MAXIMIZED;
+
+    g_Window = SDL_CreateWindow(
+        "Dear ImGui SDL3+Vulkan",
+        static_cast<int>(desktop_w * scale), // largura inicial em pixels físicos
+        static_cast<int>(desktop_h * scale), // altura inicial em pixels físicos
+        flags);
+
+    if(!g_Window) {
+        SDL_Quit();
+        return MR_MSGBOX_ERR_END_LOC(
+            "Failed to create SDL window: " + StrToWStr(SDL_GetError()));
+    }
+
+    // ---- 5. Aloca Vulkan, ImGui, fontes, console, style via Memory --------
+    // AllocAll() detecta o monitor real da janela via SDL_GetDisplayForWindow,
+    // cria o swapchain, inicializa ImGui e carrega fontes.
+    // Os recursos ficam no Memory — AllocGlobals() extrai os ponteiros.
+    if(!MR_IS_OK(Memory::Get()->AllocAll(g_Window)))
+        return MR_MSGBOX_ERR_END_LOC("Memory::AllocAll falhou.");
+
+    // ---- 6. Atribui aliases + AppSettings + MenuBar + Images --------------
+    // DEVE ser chamado APÓS AllocAll() — os ponteiros do Memory só são
+    // válidos depois que AllocAll() retorna com sucesso.
+    if(!MR_IS_OK(AllocGlobals()))
+        return MR_MSGBOX_ERR_END_LOC("AllocGlobals falhou.");
+
+    // ---- 7. Exibe a janela ------------------------------------------------
+    // Após swapchain e ImGui prontos — evita frame em branco na abertura.
+    SDL_SetWindowPosition(g_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    SDL_ShowWindow(g_Window); // aparece já maximizada
+
+    // ---- 8. Registra comandos do console ----------------------------------
+    // Console alocado por AllocAll() e agora acessível via g_Console (alias).
+    if(!MR_IS_OK(RegisterCommands()))
+        return MR_MSGBOX_ERR_END_LOC("RegisterCommands falhou.");
+
+    // ---- 9. Loop principal ------------------------------------------------
+    const MyResult result = MainLoop();
+
+    // ---- 10. Retorna para wWinMain ----------------------------------------
+    // wWinMain chama na sequência:
+    //   Memory::Get()->DestroyAll() → usa g_Window para destruir a surface
+    //   Memory::Shutdown()          → delete do singleton
+    //   SDL_DestroyWindow(g_Window) → janela destruída APÓS o Vulkan
+    //   SDL_Quit()
+    return result;
 }
 
 // =============================================================================
-// AllocGlobals
+// AllocGlobals — aliases + AppSettings + MenuBar + Images
 // =============================================================================
 
 /**
- * @brief Inicializa todos os subsistemas e atribui os ponteiros de membro.
+ * @brief Extrai os ponteiros do Memory e inicializa os subsistemas de App.
  *
- * ORDEM OBRIGATÓRIA (veja Memory.cpp para o detalhamento):
- *  1. Memory::AllocAll → Vulkan (+SetupWindow) → ImGui → Fonts → Console →
- * Style
- *  2. Atribui aliases g_Vulkan … g_Style (sem posse)
- *  3. new AppSettings → LoadConfig()
- *  4. [FONTE] io.FontGlobalScale = g_Settings->font_scale
- *       → restaura a escala da sessão anterior ANTES do primeiro NewFrame().
- *       → sem isso, o primeiro frame renderiza em escala 1.0 e "pisca" para
- *         o tamanho salvo apenas no segundo frame.
+ * DEVE ser chamado APÓS Memory::AllocAll() — os Get*() retornam nullptr
+ * antes disso, o que causaria o assert/crash que você estava vendo.
+ *
+ * ORDEM OBRIGATÓRIA DENTRO DESTA FUNÇÃO:
+ *  1. Aliases (g_Vulkan … g_Style) — lidos do Memory
+ *  2. Validação: assert que nenhum alias é nullptr
+ *  3. new AppSettings + LoadConfig()
+ *  4. io.FontGlobalScale = font_scale salvo  ← ANTES do primeiro NewFrame()
  *  5. new MenuBar
- *  6. AllocImages() — exige VkDevice + command pool prontos (criados nos passos
- *     1 e 2)
+ *  6. AllocImages()
  *
- * @param extensions  Extensões Vulkan requeridas pelo SDL.
- * @param w           Largura inicial do swapchain em pixels.
- * @param h           Altura inicial em pixels.
- * @param scale       Escala DPI do display primário.
+ * POR QUE SEM PARÂMETROS?
+ * ------------------------
+ * Os parâmetros antigos (extensions, w, h, scale) eram passados para
+ * VulkanContext::Initialize() e SetupWindow() — que agora vivem dentro de
+ * Memory::AllocVulkan(). AllocGlobals() apenas lê o resultado já pronto.
  */
-MyResult App::AllocGlobals(const ImVector<const char *> &extensions, int w,
-						   int h, float scale) {
-  // ---- 1. Memory::AllocAll — todos os subsistemas na ordem correta --------
+MyResult App::AllocGlobals() {
 
-  if (!MR_IS_OK(Memory::Get()->AllocAll()))
-	return MR_MSGBOX_ERR_END_LOC("Memory::AllocAll falhou.");
+    // ---- 1. Aliases — ponteiros SEM posse, dono é o Memory ----------------
+    // Memory::Get()->Get*() retorna nullptr se o recurso não foi alocado.
+    // Isso aconteceria se AllocAll() não tivesse sido chamado — o assert
+    // abaixo detecta isso em builds Debug.
 
-  // ---- 2. Aliases para os objetos geridos pelo Memory --------------------
-  // Estes ponteiros NÃO têm posse — Memory::DestroyAll() cuida deles
+    g_Vulkan  = Memory::Get()->GetVulkan();        // VkDevice, queues, swapchain
+    g_ImGui   = Memory::Get()->GetImGui();          // ImGuiContext + backends
+    g_Console = Memory::Get()->GetConsole();        // console ImGui wide-char
+    g_Style   = Memory::Get()->GetStyleEditor();    // editor de estilo + JSON
+    g_Settings = Memory::Get()->GetAppSettings(); // valores default do construtor
+    LoadConfig();                   // sobrescreve com dados do disco, se existirem
+    g_MenuBar =  Memory::Get()->GetMenuBar();
+    // ---- 2. Validação dos aliases -----------------------------------------
+    // Se qualquer ponteiro for nulo, AllocAll() falhou silenciosamente ou
+    // AllocGlobals() foi chamado antes de AllocAll() — ambos são bugs.
 
-  g_Vulkan = Memory::Get()->GetVulkan();
-  g_ImGui = Memory::Get()->GetImGui();
-  g_Console = Memory::Get()->GetConsole();
-  g_Style = Memory::Get()->GetStyleEditor();
+    if(!g_Vulkan)
+        return MR_MSGBOX_ERR_END_LOC(
+            "g_Vulkan nulo após AllocAll. "
+            "Certifique-se de que Memory::AllocAll() foi chamado antes de AllocGlobals().");
 
-  if (!g_Vulkan || !g_ImGui || !g_Console || !g_Style)
-	return MR_MSGBOX_ERR_END_LOC("Ponteiro de subsistema nulo apos AllocAll.");
+    if(!g_ImGui)
+        return MR_MSGBOX_ERR_END_LOC(
+            "g_ImGui nulo após AllocAll. "
+            "AllocVulkan() deve preceder AllocImGui() — verifique a ordem em Memory::AllocAll().");
 
-  // ---- 3. AppSettings — posse de App, delete em Close() -----------------
+    if(!g_Console)
+        return MR_MSGBOX_ERR_END_LOC(
+            "g_Console nulo após AllocAll. "
+            "AllocConsole() requer GImGui != nullptr — verifique a ordem em Memory::AllocAll().");
 
-  g_Settings = new AppSettings(); // valores default do construtor
-  LoadConfig(); // sobrescreve com dados do disco, se existirem
+    if(!g_Style)
+        return MR_MSGBOX_ERR_END_LOC(
+            "g_Style nulo após AllocAll. "
+            "AllocStyleEditor() falhou — verifique Memory::AllocAll().");
 
-  // ---- 4. [FONTE] Restaura a escala de fonte da sessão anterior ----------
-  // io.FontGlobalScale é um float multiplicador aplicado a todas as fontes
-  // em runtime — sem precisar reconstruir o atlas de texturas Vulkan.
-  //
-  // Por que aqui e não no início de MainLoop()?
-  //   ImGui lê FontGlobalScale no início de cada NewFrame(). Se aplicarmos
-  //   só na primeira iteração do loop, o primeiro NewFrame() já ocorreu com
-  //   escala 1.0 — causando um "piscar" visível. Aplicar aqui, antes de
-  //   qualquer NewFrame(), garante que o primeiro frame já usa o valor salvo.
-  //
-  // g_Settings->font_scale foi preenchido por LoadConfig() na linha acima,
-  // portanto reflete o valor da sessão anterior (ou 1.0 se não há
-  // settings.json).
-  ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
+    if(!g_Settings)
+        return MR_MSGBOX_ERR_END_LOC(
+            "g_Settings nulo após AllocAll. "
+            "AllocAppSettings() falhou — verifique Memory::AllocAll().");
+     if(!g_MenuBar)
+        return MR_MSGBOX_ERR_END_LOC(
+            "g_MenuBar nulo após AllocAll. "
+			"AllocMenuBar() falhou — verifique Memory::AllocAll().");
 
-  // ---- 5. MenuBar — posse de App, delete em Close() ----------------------
-  // MenuBar::MenuBar() não usa recursos externos — pode ser construído aqui
+    // ---- 3. AppSettings — posse de App, delete em Close() -----------------
 
-  g_MenuBar = new MenuBar();
+    
 
-  // ---- 6. Imagens — exige VkDevice + pool do frame 0 já criados ----------
-  // AllocImages usa g_Vulkan->GetMainWindowData()->Frames[0].CommandPool,
-  // que é criado por SetupWindow() dentro de AllocVulkan() (passo 1).
+    // ---- 4. Restaura escala de fonte da sessão anterior -------------------
+    // ImGui lê FontScaleMain no início de cada NewFrame(). Aplicar aqui,
+    // ANTES do primeiro NewFrame(), garante que o primeiro frame já usa o
+    // tamanho salvo — sem "piscar" para 1.0 e depois para o valor real.
 
-  if (!MR_IS_OK(AllocImages()))
-	return MR_CLS_WARN_LOC("AllocImages falhou — continuando sem imagens.");
+    ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
 
-  return MyResult::ok;
+    // ---- 5. MenuBar — posse de App, delete em Close() ---------------------
+
+     // MenuBar::MenuBar() não usa recursos externos
+
+    // ---- 6. Imagens -------------------------------------------------------
+    // AllocImages() usa g_Vulkan->GetDevice() e o command pool criado por
+    // SetupWindow() dentro de Memory::AllocVulkan() — ambos já existem aqui.
+
+    if(!MR_IS_OK(AllocImages()))
+        return MR_CLS_WARN_LOC("AllocImages falhou — continuando sem imagens.");
+
+    return MyResult::ok;
 }
 
 // =============================================================================
@@ -373,51 +315,25 @@ MyResult App::AllocGlobals(const ImVector<const char *> &extensions, int w,
 // =============================================================================
 
 /**
- * @brief Carrega todas as imagens da aplicação nos membros g_Logo,
- * g_IconSettings, etc.
+ * @brief Carrega todas as imagens da aplicação (g_Logo, g_IconSettings, etc.).
  *
- * QUANDO CHAMAR: apenas após AllocGlobals() — o Image::Load() usa internamente:
- *   • g_App->g_Vulkan->GetDevice()                — criado em AllocVulkan()
- *   • g_App->g_Vulkan->GetMainWindowData()→Frames — criado em SetupWindow()
- *   • g_App->g_Vulkan->GetQueue()                 — criado em AllocVulkan()
- *
- * FALHAS NÃO SÃO FATAIS por padrão:
- *   • Se um arquivo de imagem não existir, o Load() retorna false e loga o
- * erro. • A aplicação continua — IsLoaded() retorna false e os helpers Draw()
- *     são no-ops.
- *   • Mude para MR_MSGBOX_ERR_END_LOC se uma imagem for obrigatória.
- *
- * PARA ADICIONAR NOVAS IMAGENS:
- *   1. Declare o membro "Image g_MinhaImagem;" em App.hpp (seção IMAGENS)
- *   2. Carregue aqui: g_MinhaImagem.Load("assets/minha.png")
- *   3. Descarregue em Close(): g_MinhaImagem.Unload()
- *   4. Use em MainLoop(): g_App->g_MinhaImagem.Draw(w, h)
+ * Falhas não são fatais — IsLoaded() retorna false e os helpers Draw() são
+ * no-ops. Mude para MR_MSGBOX_ERR_END_LOC se uma imagem for obrigatória.
  */
 MyResult App::AllocImages() {
-  // ---- Logo principal -----------------------------------------------------
-  // Exibida na splash screen, About popup e janela principal.
-  // Falha não é fatal — aplica apenas log de aviso.
+    if(!g_Logo.Load("assets/logo.png"))
+        g_Console->AddLog(L"[Aviso] Logo nao carregou (assets/logo.png)");
+    else
+        g_Console->AddLog(L"[OK] Logo carregada (%dx%d)",
+            g_Logo.GetWidth(), g_Logo.GetHeight());
 
-  if (!g_Logo.Load("assets/logo.png"))
-	g_Console->AddLog(L"[Aviso] Logo nao carregou (assets/logo.png)");
-  else
-	g_Console->AddLog(L"[OK] Logo carregada (%dx%d)", g_Logo.GetWidth(),
-					  g_Logo.GetHeight());
+    if(!g_IconSettings.Load("assets/icon_settings.png"))
+        g_Console->AddLog(L"[Aviso] IconSettings nao carregou (assets/icon_settings.png)");
+    else
+        g_Console->AddLog(L"[OK] IconSettings carregado (%dx%d)",
+            g_IconSettings.GetWidth(), g_IconSettings.GetHeight());
 
-  // ---- Ícone de configurações (16×16 ou 32×32) ----------------------------
-  // Usado na barra de menu e toolbar.
-
-  if (!g_IconSettings.Load("assets/icon_settings.png"))
-	g_Console->AddLog(
-		L"[Aviso] IconSettings nao carregou (assets/icon_settings.png)");
-  else
-	g_Console->AddLog(L"[OK] IconSettings carregado (%dx%d)",
-					  g_IconSettings.GetWidth(), g_IconSettings.GetHeight());
-
-  // Adicione mais imagens aqui seguindo o mesmo padrão:
-  // if(!g_MeuIcone.Load("assets/meu_icone.png")) { ... }
-
-  return MyResult::ok; // imagens são opcionais — nunca retorna erro aqui
+    return MyResult::ok; // imagens são opcionais — nunca retorna erro aqui
 }
 
 // =============================================================================
@@ -428,156 +344,170 @@ MyResult App::AllocImages() {
  * @brief Executa o ciclo completo de destruição na ordem obrigatória.
  *
  * ORDEM (desviar causa crash ou VK_ERROR_DEVICE_LOST):
- *
- *  1. vkDeviceWaitIdle      → GPU termina TODOS os frames em voo.
- *                             Destruir recursos Vulkan antes = UB garantido.
- *
- *  2. Imagens (Unload)      → ANTES de DestroyAll: Image::Unload chama
- *                             vkDestroyImage, vkDestroySampler, etc.
- *                             O device ainda existe neste ponto.
- *
- *  3. delete g_MenuBar      → sem dependência de GPU.
- *  4. delete g_Settings     → idem.
- *
- *  5. Memory::DestroyAll    → StyleEditor → Console → FontManager → ImGui →
- *                             Vulkan (ordem inversa da alocação, garantida
- *                             pelo Memory)
- *
- *  6. SDL_DestroyWindow     → APÓS Vulkan: CleanupWindow já destruiu a surface.
- *  7. SDL_Quit              → encerra subsistemas SDL.
- *  8. g_App = nullptr       → previne use-after-free em chamadas duplas.
+ *  1. vkDeviceWaitIdle      → GPU termina todos os frames em voo
+ *  2. Imagens Unload()      → usa VkDevice — antes de DestroyAll()
+ *  3. delete g_MenuBar      → sem dependência de GPU
+ *  4. delete g_Settings     → idem
+ *  5. Memory::DestroyAll()  → StyleEditor → Console → FontManager → ImGui → Vulkan
+ *  6. Anula aliases         → previne acesso a memória liberada
+ *  7. SDL_DestroyWindow     → após Vulkan (surface já destruída pelo Memory)
+ *  8. SDL_Quit
+ *  9. g_App = nullptr       → previne use-after-free
  */
 void App::Close() {
-  // ---- 1. GPU idle — NUNCA destrua recursos Vulkan com frames em voo -----
+    // ---- 1. GPU idle -------------------------------------------------------
+    if(g_Vulkan && g_Vulkan->GetDevice() != VK_NULL_HANDLE) {
+        const VkResult err = vkDeviceWaitIdle(g_Vulkan->GetDevice());
+        VulkanContext::CheckVkResult(err);
+    }
 
-  if (g_Vulkan && g_Vulkan->GetDevice() != VK_NULL_HANDLE) {
-	const VkResult err = vkDeviceWaitIdle(g_Vulkan->GetDevice());
-	VulkanContext::CheckVkResult(err); // aborta em VK_ERROR_DEVICE_LOST
-  }
+    // ---- 2. Imagens — ANTES de DestroyAll ----------------------------------
+    g_Logo.Unload();
+    g_IconSettings.Unload();
 
-  // ---- 2. Imagens — Unload ANTES de Memory::DestroyAll -------------------
-  // Image::Unload() usa g_Vulkan->GetDevice() internamente.
-  // Se chamado depois de DestroyAll(), o device já não existe → crash.
-  // O destrutor de App chamaria Unload() de novo, mas Image::Unload()
-  // verifica m_Loaded == false e retorna imediatamente (seguro).
+    // ---- 3 e 4. Objetos com posse em App -----------------------------------
+     g_MenuBar  = nullptr;
+     g_Settings = nullptr;
 
-  g_Logo.Unload();
-  g_IconSettings.Unload();
-  // Adicione Unload() para cada nova imagem declarada em App.hpp:
-  // g_MeuIcone.Unload();
+    // ---- 5. Memory::DestroyAll — ordem inversa da alocação -----------------
+    Memory::Get()->DestroyAll();
 
-  // ---- 3 e 4. Objetos com posse em App -----------------------------------
+    // ---- 6. Anula aliases — apontam para memória já liberada ---------------
+    g_Style   = nullptr;
+    g_Console = nullptr;
+    g_ImGui   = nullptr;
+    g_Vulkan  = nullptr;
 
-  delete g_MenuBar;
-  g_MenuBar = nullptr;
-  delete g_Settings;
-  g_Settings = nullptr;
+    // ---- 7 e 8. SDL --------------------------------------------------------
+    if(g_Window) {
+        SDL_DestroyWindow(g_Window); // surface já destruída pelo Memory
+        g_Window = nullptr;
+    }
+    SDL_Quit();
 
-  // ---- 5. Memory::DestroyAll — destrói na ordem inversa ------------------
+    // ---- 9. Anula ponteiro global ------------------------------------------
+    g_App = nullptr;
 
-  Memory::Get()->DestroyAll();
+    ImPlot::DestroyContext();
+}
 
-  // Os aliases apontam para memória já liberada pelo Memory — anulamos
-  g_Style = nullptr;
-  g_Console = nullptr;
-  g_ImGui = nullptr;
-  g_Vulkan = nullptr;
+// =============================================================================
+// Persistência
+// =============================================================================
 
-  // ---- 6 e 7. SDL --------------------------------------------------------
+/**
+ * @brief Serializa *g_Settings para m_ConfigFile via reflect-cpp.
+ */
+void App::SaveConfig() {
+    if(g_Settings)
+        rfl::json::save(m_ConfigFile, *g_Settings);
+}
 
-  if (g_Window) {
-	SDL_DestroyWindow(g_Window); // surface Vulkan já destruída pelo Memory
-	g_Window = nullptr;
-  }
-  SDL_Quit();
+/**
+ * @brief Carrega m_ConfigFile em *g_Settings.
+ * Se o arquivo não existir ou estiver corrompido, mantém os defaults.
+ */
+void App::LoadConfig() {
+    if(!g_Settings)
+        return;
+    auto r = rfl::json::load<AppSettings>(m_ConfigFile);
+    if(r)
+        *g_Settings = *r;
+}
 
-  // ---- 8. Anula o ponteiro global ----------------------------------------
+// =============================================================================
+// GetDesktopResolution
+// =============================================================================
 
-  g_App = nullptr; // sinaliza que a instância não existe mais
-
-  ImPlot::DestroyContext();
+/**
+ * @brief Obtém a resolução do desktop via Win32.
+ *
+ * GetDesktopWindow() + GetWindowRect() retorna as dimensões do monitor
+ * primário em pixels físicos — independente de escala DPI do Windows.
+ */
+MyResult App::GetDesktopResolution(int& horizontal, int& vertical) {
+    RECT desktop;
+    const HWND hDesktop = GetDesktopWindow(); // handle para o desktop do Windows
+    GetWindowRect(hDesktop, &desktop);         // preenche desktop.right e .bottom
+    horizontal = desktop.right;                // largura em pixels
+    vertical   = desktop.bottom;               // altura em pixels
+    return MR_OK;
 }
 
 // =============================================================================
 // RegisterCommands
 // =============================================================================
-
 /**
- * @brief Registra os comandos do Console ImGui.
  *
- * As lambdas capturam [this] e acessam os membros de App diretamente.
- * Nenhum parâmetro de instância é necessário.
+ * Chamado após AllocGlobals() — g_Console e g_Vulkan já estão válidos.
  */
 MyResult App::RegisterCommands() {
-  if (!g_Console)
-	return MR_MSGBOX_ERR_END_LOC("g_Console nulo em RegisterCommands.");
-  if (!g_Vulkan)
-	return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo em RegisterCommands.");
+    if(!g_Console)
+        return MR_MSGBOX_ERR_END_LOC("g_Console nulo em RegisterCommands.");
+    if(!g_Vulkan)
+        return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo em RegisterCommands.");
 
-  // EXIT / QUIT — encerram o MainLoop via g_Done
-  auto cmd_quit = [this]() {
-	g_Console->AddLog(L"Saindo...");
-	g_Done = true;
-  };
-  g_Console->RegisterBuiltIn(L"EXIT", cmd_quit);
-  g_Console->RegisterCommand(L"QUIT", cmd_quit);
+    auto cmd_quit = [this]() {
+        g_Console->AddLog(L"Saindo...");
+        g_Done = true;
+    };
+    g_Console->RegisterBuiltIn(L"EXIT", cmd_quit);
+    g_Console->RegisterCommand(L"QUIT", cmd_quit);
 
-  // BREAK — útil com debugger anexado
-  g_Console->RegisterCommand(L"BREAK", L"USAR SOMENTE EM DEBUG",
-							 []() { __debugbreak(); });
+    g_Console->RegisterCommand(L"BREAK", L"USAR SOMENTE EM DEBUG",
+        [this]() { 
+        if(IsDebuggerPresent()) {
+            __debugbreak();
+        } else {
+			g_Console->AddLog(L"[AVISO] BREAK chamado, mas nenhum depurador detectado. Ignorando.");
+        }
+    }  );
 
-  // SPECS — hardware + APIs gráficas
-  g_Console->RegisterCommand(
-	  L"SPECS", L"Exibe as especificacoes de hardware do PC.", [this]() {
-		SystemInfo::Collect(g_Vulkan, L"Vulkan").PrintToConsole(g_Console);
-	  });
+    g_Console->RegisterCommand(L"SPECS", L"Exibe as especificacoes de hardware do PC.",
+        [this]() {
+            SystemInfo::Collect(g_Vulkan, L"Vulkan").PrintToConsole(g_Console);
+        });
 
-  // VSYNC — alterna VSync
-  g_Console->RegisterCommand(L"VSYNC", L"Liga ou desliga o VSync.", [this]() {
-	const bool novo = !g_Vulkan->GetVSync();
-	g_Vulkan->SetVSync(novo);
-	g_Console->AddLog(novo ? L"VSync ON" : L"VSync OFF");
-  });
+    g_Console->RegisterCommand(L"VSYNC", L"Liga ou desliga o VSync.",
+        [this]() {
+            const bool novo = !g_Vulkan->GetVSync();
+            g_Vulkan->SetVSync(novo);
+            g_Console->AddLog(novo ? L"VSync ON" : L"VSync OFF");
+        });
 
-  // NOVIEWPORTS — desabilita viewports flutuantes em tempo de execução
-  g_Console->RegisterCommand(
-	  L"NOVIEWPORTS",
-	  L"Desabilita os viewports flutuantes do ImGui (janelas fora da main "
-	  L"window).",
-	  [this]() {
-		this->DisableViewportDocking(); // chama o método de App que altera o
-										// estilo
-		if (bViewportDocking)
-		  bViewportDocking = !bViewportDocking; // global
-	  });
+    g_Console->RegisterCommand(L"NOVIEWPORTS",
+        L"Desabilita os viewports flutuantes do ImGui.",
+        [this]() {
+            this->DisableViewportDocking();
+            if(bViewportDocking) bViewportDocking = !bViewportDocking;
+        });
 
-  g_Console->RegisterCommand(
-	  L"forceexit",
-	  L"FORÇA o encerramento imediato do programa (sem cleanup, sem salvar "
-	  L"configurações).",
-	  []() {
-		g_App->g_Console->AddLog(L"FORCE EXIT: Encerrando imediatamente...");
-		std::exit(0); // encerra o processo sem chamar destrutores ou cleanup
-	  });
-  g_Console->RegisterCommand(L"implot", L"Mostra funcionalidades do ImPlot",
-							 []() { ImPlot::ShowDemoWindow(); });
+    g_Console->RegisterCommand(L"forceexit",
+        L"FORÇA o encerramento imediato do programa (sem cleanup).",
+        []() {
+            g_App->g_Console->AddLog(L"FORCE EXIT: Encerrando imediatamente...");
+            std::exit(0);
+        });
 
-  g_Console->RegisterCommand(L"TestEngine",
-							 L"Mostra funcionalidades do Test Engine",
-							 []() { /*testEnginemain(0, nullptr);*/ });
+    g_Console->RegisterCommand(L"implot", L"Mostra funcionalidades do ImPlot",
+        []() { ImPlot::ShowDemoWindow(); });
 
-  g_Console->RegisterCommand(L"Abort",      
-	  L"Aborta o programa com falha (útil para testar handlers de crash)",
-	  []() { std::abort(); });
+         g_Console->RegisterCommand(L"implot3d", L"Mostra funcionalidades do ImPlot3d",
+        []() { });
 
-	  g_Console->RegisterCommand(L"System Pause",      
-	  L"Pausa o sistema atraves do windows (útil para depuração)",
-	  []() { std::system("pause"); });
+    g_Console->RegisterCommand(L"Abort",
+        L"Aborta o programa com falha (útil para testar handlers de crash)",
+        []() { std::abort(); });
 
-	   g_Console->RegisterCommand(L"Cpp Pause",      
-	  L"Pausa o sistema atraves do proprío c++ (útil para depuração)",
-	  []() { std::cin.get(); });
-  return MyResult::ok;
+    g_Console->RegisterCommand(L"System Pause",
+        L"Pausa o sistema atraves do Windows (útil para depuração)",
+        []() { std::system("pause"); });
+
+    g_Console->RegisterCommand(L"Cpp Pause",
+        L"Pausa o sistema atraves do C++ (útil para depuração)",
+        []() { std::cin.get(); });
+
+    return MyResult::ok;
 }
 
 // =============================================================================
@@ -586,264 +516,282 @@ MyResult App::RegisterCommands() {
 
 /**
  * @brief Loop SDL + ImGui + Vulkan — roda até g_Done == true.
- * Acessa todos os recursos via membros de App (this) — sem parâmetros externos.
  */
 MyResult App::MainLoop() {
-  g_io = &g_ImGui->GetIO();
-  const bool g_grafico = false;
+    g_io = &g_ImGui->GetIO();
 
-  const bool font_rt = (g_io->Fonts && g_io->Fonts->FontLoader);
-  g_Console->AddLog(font_rt ? L"\n[RT] FontLoader ativo\n"
-							: L"[RT] FontLoader: stb_truetype (padrao)\n");
+    const bool font_rt = (g_io->Fonts && g_io->Fonts->FontLoader);
+    g_Console->AddLog(font_rt
+        ? L"\n[RT] FontLoader ativo\n"
+        : L"[RT] FontLoader: stb_truetype (padrao)\n");
 
-  float *color_ptr = g_Settings->clear_color.data();
-  g_color_ptr = color_ptr;
-  const float window_opacity = 1.0f;
+    float* color_ptr = g_Settings->clear_color.data();
+    g_color_ptr      = color_ptr;
+    g_window_opacity = 1.0f;
 
-  g_window_opacity =
-	  window_opacity; // inicializa a variável global para o slider
+    static ScrollingBuffer sdata = ScrollingBuffer::ScrollingBuffer();
+    float t = 0;
 
-  // No topo do seu MainLoop (fora do loop while)
-  static ScrollingBuffer sdata =
-	  ScrollingBuffer::ScrollingBuffer(); // Você precisaria definir essa struct
-										  // auxiliar do ImPlot
-  float t = 0;
-  ImPlotFlags spec;
-  spec = ImPlotFlags_None;
+    while(!g_Done) {
 
-  // if (ImPlot::BeginPlot("##FPS", ImVec2(-1, 150), spec)) {
-  //     // 1. Configuração dos Eixos
-  //     ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoTickLabels,
-  //     ImPlotAxisFlags_None); ImPlot::SetupAxisLimits(ImAxis_X1, t - 10, t,
-  //     ImGuiCond_Always); ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 200);
-  //
-  //     // 2. Verificação de segurança: só plota se houver dados
-  //     if (sdata.Data.size() > 0) {
-  //         // 3. Criar a struct ImPlotSpec exigida pelas suas sobrecargas
-  //         ImPlotSpec spec;
-  //         spec.Offset = (int)sdata.Offset;
-  //         spec.Stride = (int)sizeof(ImVec2);
-  //         // Nota: Se houver erro de compilação em 'spec.Flags', adicione:
-  //         // spec.Flags = ImPlotLineFlags_None;
-  //
-  //         // 4. Chamada correta usando a assinatura Template que você possui
-  //         ImPlot::PlotLine("FPS Atual",
-  //                          &sdata.Data[0].x,
-  //                          &sdata.Data[0].y,
-  //                          (int)sdata.Data.size(),
-  //                          spec);
-  //     }
-  //
-  //     ImPlot::EndPlot();
-  // }
-  while (!g_Done) {
+        // ---- 1. Eventos SDL -----------------------------------------------
+        SDL_Event event;
+        while(SDL_PollEvent(&event)) {
+            ImGui_ImplSDL3_ProcessEvent(&event);
 
-	// ----------------------------------------------------------------
-	// 1. Eventos SDL
-	// ----------------------------------------------------------------
+            if(event.type == SDL_EVENT_QUIT)
+                g_Done = true;
 
-	SDL_Event event;
-	while (SDL_PollEvent(&event)) {
-	  ImGui_ImplSDL3_ProcessEvent(&event);
+            if(event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
+               event.window.windowID == SDL_GetWindowID(g_Window))
+                g_Done = true;
 
-	  if (event.type == SDL_EVENT_QUIT)
-		g_Done = true;
+            if(event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F11) {
+                g_IsFullscreen = !g_IsFullscreen;
+                SDL_SetWindowFullscreen(g_Window, g_IsFullscreen);
+            }
+        }
 
-	  if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED &&
-		  event.window.windowID == SDL_GetWindowID(g_Window))
-		g_Done = true;
+        if(SDL_GetWindowFlags(g_Window) & SDL_WINDOW_MINIMIZED) {
+            SDL_Delay(10);
+            continue;
+        }
 
-	  if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F11) {
-		g_IsFullscreen = !g_IsFullscreen;
-		SDL_SetWindowFullscreen(g_Window, g_IsFullscreen);
-	  }
-	}
+        // ---- 2. Rebuild da swapchain --------------------------------------
+        int fb_w, fb_h;
+        SDL_GetWindowSize(g_Window, &fb_w, &fb_h);
+        ImGui_ImplVulkanH_Window* wd = g_Vulkan->GetMainWindowData();
 
-	if (SDL_GetWindowFlags(g_Window) & SDL_WINDOW_MINIMIZED) {
-	  SDL_Delay(10);
-	  continue;
-	}
+        if(fb_w > 0 && fb_h > 0 &&
+           (g_Vulkan->NeedsSwapChainRebuild() ||
+            wd->Width != fb_w || wd->Height != fb_h))
+            g_Vulkan->RebuildSwapChain(fb_w, fb_h);
 
-	// ----------------------------------------------------------------
-	// 2. Rebuild da swapchain
-	// ----------------------------------------------------------------
+        // ---- 3. Frame ImGui -----------------------------------------------
+        Windows();
 
-	int fb_w, fb_h;
-	SDL_GetWindowSize(g_Window, &fb_w, &fb_h);
-	ImGui_ImplVulkanH_Window *wd = g_Vulkan->GetMainWindowData();
+        // ---- 4. Render Vulkan ---------------------------------------------
+        g_ImGui->Render();
 
-	if (fb_w > 0 && fb_h > 0 &&
-		(g_Vulkan->NeedsSwapChainRebuild() || wd->Width != fb_w ||
-		 wd->Height != fb_h))
-	  g_Vulkan->RebuildSwapChain(fb_w, fb_h);
+        ImDrawData* draw_data = ImGui::GetDrawData();
+        const bool minimized = (draw_data->DisplaySize.x <= 0.0f ||
+                                 draw_data->DisplaySize.y <= 0.0f);
 
-	Windows();
+        wd->ClearValue.color.float32[0] = color_ptr[0] * color_ptr[3];
+        wd->ClearValue.color.float32[1] = color_ptr[1] * color_ptr[3];
+        wd->ClearValue.color.float32[2] = color_ptr[2] * color_ptr[3];
+        wd->ClearValue.color.float32[3] = color_ptr[3];
 
-	// ----------------------------------------------------------------
-	// 5. Render Vulkan
-	// ----------------------------------------------------------------
+        if(!minimized)   g_Vulkan->FrameRender(draw_data);
+        if(g_ImGui->WantsViewports()) g_ImGui->RenderPlatformWindows();
+        if(!minimized)   g_Vulkan->FramePresent();
+    }
 
-	g_ImGui->Render();
-
-	ImDrawData *draw_data = ImGui::GetDrawData();
-	const bool minimized =
-		(draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
-
-	wd->ClearValue.color.float32[0] = color_ptr[0] * color_ptr[3];
-	wd->ClearValue.color.float32[1] = color_ptr[1] * color_ptr[3];
-	wd->ClearValue.color.float32[2] = color_ptr[2] * color_ptr[3];
-	wd->ClearValue.color.float32[3] = color_ptr[3];
-
-	if (!minimized)
-	  g_Vulkan->FrameRender(draw_data);
-	if (g_ImGui->WantsViewports())
-	  g_ImGui->RenderPlatformWindows();
-	if (!minimized)
-	  g_Vulkan->FramePresent();
-  }
-
-  return MyResult::ok;
-}
-
-MyResult App::GetDesktopResolution(int& horizontal, int& vertical) {
-	  RECT desktop;
-   // Get a handle to the desktop window
-   const HWND hDesktop = GetDesktopWindow();
-   // Get the size of screen to the variable desktop
-   GetWindowRect(hDesktop, &desktop);
-   // The top left corner will have coordinates (0,0)
-   // and the bottom right corner will have coordinates
-   // (horizontal, vertical)
-   horizontal = desktop.right;
-   vertical = desktop.bottom;
-
-   return MR_OK;
+    return MyResult::ok;
 }
 
 // =============================================================================
-// run
+// Windows — conteúdo ImGui do frame
 // =============================================================================
 
 /**
- * @brief Orquestra SDL, AllocGlobals, MainLoop e Close.
- * Close() é SEMPRE chamado — mesmo que MainLoop retorne erro.
+ * @brief Renderiza todas as janelas ImGui do frame atual.
+ *
+ * Chamado por MainLoop() a cada frame, após o rebuild do swapchain e
+ * antes do Render(). g_ImGui->NewFrame() é chamado aqui.
  */
-MyResult App::run() {
+MyResult App::Windows() {
+    WindowsConsole::poll_hotkey();
 
-  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))  
-	MR_MSGBOX_ERR_END_LOC("Failed to initialize SDL: " +
-								 StrToWStr(SDL_GetError()));
-								 
+    g_ImGui->NewFrame();
 
-  const float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+    g_MenuBar->Draw();
 
-  const SDL_WindowFlags flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE |
-						  SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY |
-						  SDL_WINDOW_MAXIMIZED;
-	
-  int desktop_w, desktop_h;
+    if(g_ShowDemo)
+        ImGui::ShowDemoWindow(&g_ShowDemo);
 
-  if (!MR_IS_OK(GetDesktopResolution(desktop_w, desktop_h)) || desktop_w <= 0 || desktop_h <= 0) {
-	SDL_Quit();
-	return MR_MSGBOX_ERR_END_LOC("Failed to get desktop resolution.");
-  }
+    {
+        ImGui::Begin("Window Controls");
 
-  g_Window =
-	  SDL_CreateWindow("Dear ImGui SDL3+Vulkan", static_cast<int>(desktop_w * scale),
-					   static_cast<int>(desktop_h * scale), flags);
+        const float btn_w   = 60.0f;
+        const float padding = ImGui::GetStyle().WindowPadding.x;
+        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - btn_w - padding);
+        if(ImGui::Button("❌", ImVec2(btn_w, 0)))
+            g_Done = true;
+        if(ImGui::IsItemHovered())
+            ImGui::SetTooltip("Fechar o programa");
 
-  if (!g_Window)
-	return MR_MSGBOX_ERR_END_LOC("Failed to create SDL window: " +
-								 StrToWStr(SDL_GetError()));
+        ImGui::SameLine();
+        ImGui::Text("Global Alpha Blending");
 
-  ImVector<const char *> extensions;
-  {
-	uint32_t n = 0;
-	const char *const *ext = SDL_Vulkan_GetInstanceExtensions(&n);
-	for (uint32_t i = 0; i < n; ++i)
-	  extensions.push_back(ext[i]);
-  }
+        if(ImGui::SliderFloat("Window Opacity", &g_window_opacity, 0.1f, 1.0f))
+            SDL_SetWindowOpacity(g_Window, g_window_opacity);
 
-  int w, h;
-  SDL_GetWindowSize(g_Window, &w, &h);
+        if(ImGui::Button("Reset to Opaque")) {
+            g_window_opacity = 1.0f;
+            SDL_SetWindowOpacity(g_Window, 1.0f);
+        }
 
-  if (!MR_IS_OK(AllocGlobals(extensions, w, h, scale))) {
-	Close();
-	return MR_MSGBOX_ERR_END_LOC("AllocGlobals falhou.");
-  }
+        ImGui::Separator();
 
-  SDL_SetWindowPosition(g_Window, SDL_WINDOWPOS_CENTERED,
-						SDL_WINDOWPOS_CENTERED);
-  SDL_ShowWindow(g_Window);
+        if(ImGui::ColorEdit3("Background Color", g_color_ptr))
+            SaveConfig();
 
-  if (!MR_IS_OK(RegisterCommands())) {
-	Close();
-	return MR_MSGBOX_ERR_END_LOC("RegisterCommands falhou.");
-  }
+        // ---- Escala de fonte — persistida entre sessões -------------------
+        // io.FontGlobalScale multiplica o tamanho de todas as fontes em
+        // runtime sem reconstruir o atlas. Efeito imediato no próximo NewFrame().
+        ImGui::Separator();
+        if(ImGui::SliderFloat("Font Scale", &g_Settings->font_scale,
+            0.5f, 3.0f, "%.2f")) {
+            ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
+            SaveConfig();
+        }
+        if(ImGui::Button("Reset Font")) {
+            g_Settings->font_scale       = 1.0f;
+            ImGui::GetStyle().FontScaleMain = 1.0f;
+            SaveConfig();
+        }
 
-  MyResult result = MainLoop();
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+            1000.0f / g_io->Framerate, g_io->Framerate);
 
-  Close(); // sempre executado
+        ImGui::Separator();
+        WindowsConsole::render_imgui_button();
 
-  return result;
+        if(ImGui::Checkbox("Show ImGui Console", &g_Settings->show_console))
+            SaveConfig();
+
+        ImGui::Checkbox("Demo Window",    &g_ShowDemo);
+        ImGui::Checkbox("Style Editor",   &g_ShowStyleEd);
+
+        if(ImGui::Button("Log Test msg"))
+            g_Console->AddLog(L"Botao pressionado no frame %d \U0001F680",
+                ImGui::GetFrameCount());
+
+        if(g_Logo.IsLoaded()) {
+            ImGui::Separator();
+            g_Logo.DrawCentered(180.0f, 60.0f);
+            if(ImGui::IsItemHovered())
+                ImGui::SetTooltip("Logo %dx%d", g_Logo.GetWidth(), g_Logo.GetHeight());
+        }
+
+        if(g_IconSettings.IsLoaded()) {
+            if(g_IconSettings.DrawButton("##btn_settings", {16.0f, 16.0f}))
+                g_ShowStyleEd = !g_ShowStyleEd;
+            ImGui::SameLine();
+            ImGui::Text("Configuracoes");
+        }
+
+        ImGui::Checkbox("grafico",    &g_grafico);
+        ImGui::Checkbox("Viewports",  &bViewportDocking);
+		ImGui::Checkbox("ImPlot3D Demo RealtimePlots", &bImPlot3d_DemoRealtimePlots);
+		ImGui::Checkbox("ImPlot3D Demo QuadPlots", &bImPlot3d_DemoQuadPlots);
+		ImGui::Checkbox("ImPlot3D Demo TickLabels", &bImPlot3d_DemoTickLabels);
+        ImGui::End();
+    }
+
+    if(g_Settings->show_console) {
+        g_Console->Draw(L"Debug Console", &g_Settings->show_console);
+        if(!g_Settings->show_console) SaveConfig();
+    }
+
+    if(g_ShowStyleEd)
+        g_Style->Show(nullptr, &g_ShowStyleEd);
+
+    if(bViewportDocking)
+        bViewportDocking = !bViewportDocking;
+
+    if(g_grafico) {
+        ImGui::Begin("Grafico de Exemplo", &g_grafico);
+        if(ImPlot::BeginPlot("Gráfico de Exemplo")) {
+            ImPlot::SetupAxes("Tempo", "Valor");
+            static float x_data[10] = {0,1,2,3,4,5,6,7,8,9};
+            static float y_data[10] = {1,3,2,4,5,3,6,5,7,8};
+            ImPlot::PlotLine("Sinal A", x_data, y_data, 10);
+            ImPlot::PlotLineG("Cosseno",
+                [](int idx, void*) {
+                    const float x = idx * 0.1f;
+                    return ImPlotPoint(x, cosf(x));
+                }, nullptr, 100);
+            ImPlot::EndPlot();
+            ImGui::End();
+        }
+    }
+
+    if(bImPlot3d_DemoRealtimePlots){
+		ImGui::Begin("ImPlot3D Demo RealtimePlots", &bImPlot3d_DemoRealtimePlots);
+    ImPlot3D::CreateContext();
+    ImPlot3D::DemoRealtimePlots();
+    ImPlot3D::DestroyContext();
+    ImGui::End();
+    }
+    
+    if(bImPlot3d_DemoQuadPlots){
+		ImGui::Begin("ImPlot3D Demo QuadPlots", &bImPlot3d_DemoQuadPlots);
+    ImPlot3D::CreateContext();
+    ImPlot3D::DemoQuadPlots();
+    ImPlot3D::DestroyContext();
+    ImGui::End();
+    }
+
+    if(bImPlot3d_DemoTickLabels){
+		ImGui::Begin("ImPlot3D Demo TickLabels", &bImPlot3d_DemoTickLabels);
+    ImPlot3D::CreateContext();
+    ImPlot3D::DemoTickLabels();
+    ImPlot3D::DestroyContext();
+    ImGui::End();
+    }
+
+    return MR_OK;
 }
+
+// =============================================================================
+// DisableViewportDocking
+// =============================================================================
 
 void App::DisableViewportDocking() {
+    g_io->ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
 
-  // Remove o flag ViewportsEnable do bitmask de ConfigFlags
-  // &= ~FLAG é o idioma C++ para "apaga apenas esse bit, mantém o resto"
-  g_io->ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
+    ImGuiContext* ctx       = ImGui::GetCurrentContext();
+    ImVec2 main_pos         = ImGui::GetMainViewport()->Pos;
+    ImVec2 main_size        = ImGui::GetMainViewport()->Size;
 
-  // Desabilitar o flag não move janelas já fora da tela de volta.
-  // Precisamos iterar todas as janelas internas do ImGui e forçar
-  // suas posições para dentro dos limites do viewport principal.
-  //
-  // ImGui::GetCurrentContext()->Windows só está disponível via
-  // imgui_internal.h — incluso aqui apenas para esta operação.
-  ImGuiContext *ctx = ImGui::GetCurrentContext();
-  ImVec2 main_pos =
-	  ImGui::GetMainViewport()->Pos; // origem (0,0 em janela normal)
-  ImVec2 main_size =
-	  ImGui::GetMainViewport()->Size; // largura e altura da janela SDL
+    for(ImGuiWindow* win : ctx->Windows) {
+        if(!win || win->Hidden) continue;
+        float max_x = main_pos.x + main_size.x - win->Size.x;
+        float max_y = main_pos.y + main_size.y - win->Size.y;
+        win->Pos.x  = ImClamp(win->Pos.x, main_pos.x, ImMax(main_pos.x, max_x));
+        win->Pos.y  = ImClamp(win->Pos.y, main_pos.y, ImMax(main_pos.y, max_y));
+    }
 
-  for (ImGuiWindow *win : ctx->Windows) {
-	if (!win || win->Hidden)
-	  continue; // ignora janelas invisíveis
-
-	// Calcula a posição máxima permitida para que a janela
-	// não ultrapasse o canto inferior direito do viewport
-	float max_x = main_pos.x + main_size.x - win->Size.x;
-	float max_y = main_pos.y + main_size.y - win->Size.y;
-
-	// ImClamp(valor, min, max) — mantém o valor dentro do intervalo
-	win->Pos.x = ImClamp(win->Pos.x, main_pos.x, ImMax(main_pos.x, max_x));
-	win->Pos.y = ImClamp(win->Pos.y, main_pos.y, ImMax(main_pos.y, max_y));
-  }
-
-  g_App->g_Console->AddLog(
-	  L"Viewports desabilitados — janelas reposicionadas.");
+    g_App->g_Console->AddLog(L"Viewports desabilitados — janelas reposicionadas.");
 }
 
-ScrollingBuffer::ScrollingBuffer() : MaxSize(2000), Offset(), Data({}) {}
+// =============================================================================
+// ScrollingBuffer
+// =============================================================================
 
-ScrollingBuffer::ScrollingBuffer(int max_size) : ScrollingBuffer() {
-  MaxSize = max_size;
-  Offset = 0;
-  Data.reserve(MaxSize);
+ScrollingBuffer::ScrollingBuffer()
+    : MaxSize(2000), Offset(0), Data({}) {}
+
+ScrollingBuffer::ScrollingBuffer(int max_size)
+    : ScrollingBuffer() {
+    MaxSize = max_size;
+    Data.reserve(MaxSize);
 }
 
 void ScrollingBuffer::AddPoint(float x, float y) {
-  if (Data.size() < MaxSize)
-	Data.push_back(ImVec2(x, y));
-  else {
-	Data[Offset] = ImVec2(x, y);
-	Offset = (Offset + 1) % MaxSize;
-  }
+    if(Data.size() < MaxSize)
+        Data.push_back(ImVec2(x, y));
+    else {
+        Data[Offset] = ImVec2(x, y);
+        Offset = (Offset + 1) % MaxSize;
+    }
 }
 
 void ScrollingBuffer::Erase() {
-  if (Data.size() > 0) {
-	Data.shrink(0);
-	Offset = 0;
-  }
+    if(Data.size() > 0) {
+        Data.shrink(0);
+        Offset = 0;
+    }
 }

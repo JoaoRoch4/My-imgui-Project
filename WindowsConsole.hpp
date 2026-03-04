@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.hpp"
+#include "MyResult.hpp"
 
 /// @brief Tecla de atalho padrão para abrir/fechar o WindowsConsole (pode ser mudada).
 constexpr int WINDOWS_CONSOLE_DEFAULT_KEY = VK_F1;
@@ -18,10 +19,10 @@ public:
      * @brief Inicializa o console externo — deve ser chamado uma vez no wWinMain.
      * @param hotkey Tecla virtual (VK_*) que faz o toggle. Padrão: F1.
      */
-    static void init(int hotkey = WINDOWS_CONSOLE_DEFAULT_KEY);
+    static MyResult init(int hotkey = WINDOWS_CONSOLE_DEFAULT_KEY);
 
     /** @brief Libera o console externo — chame ao encerrar o programa. */
-    static void shutdown();
+    static MyResult shutdown();
 
     /** @brief Abre ou fecha o console externo dependendo do estado atual. */
     static void toggle();

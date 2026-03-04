@@ -1,13 +1,11 @@
 {
   "name": "app",
   "version": "0.0.1",
-  "dependencies":
-  [
+  "dependencies": [
     "freetype",
     {
       "name": "reflectcpp",
-      "features":
-      [
+      "features": [
         "xml"
       ]
     }

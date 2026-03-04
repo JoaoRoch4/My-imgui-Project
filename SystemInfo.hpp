@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pch.hpp"
+
 // ============================================================================
 // GpuInfo — uma entrada por GPU física detectada via DXGI
 // ============================================================================
@@ -71,24 +72,45 @@ struct MachineInfo {
 };
 
 // ============================================================================
+// MonitorInfo — uma entrada por monitor físico conectado
+// ============================================================================
+
+struct MonitorInfo {
+    std::wstring device_name;    ///< Nome interno do GDI ex.: L"\\\\.\\DISPLAY1"
+    std::wstring friendly_name;  ///< Nome do monitor ex.: L"Dell U2722D"
+    std::wstring manufacturer;   ///< Fabricante decodificado do EDID ex.: L"Dell"
+    std::wstring serial_number;  ///< Número de série do EDID (pode estar vazio)
+    uint32_t     width_px;       ///< Resolução horizontal atual em pixels
+    uint32_t     height_px;      ///< Resolução vertical atual em pixels
+    uint32_t     physical_width_mm;  ///< Largura física do painel em milímetros (EDID)
+    uint32_t     physical_height_mm; ///< Altura física do painel em milímetros (EDID)
+    float        dpi_x;          ///< DPI horizontal calculado (pixels / polegadas)
+    float        dpi_y;          ///< DPI vertical calculado
+    float        refresh_hz;     ///< Taxa de atualização em Hz
+    bool         is_primary;     ///< true se for o monitor principal do sistema
+    uint32_t     index;          ///< Índice do monitor (0 = primeiro)
+};
+
+// ============================================================================
 // SystemInfo — struct principal com todos os campos
 // ============================================================================
 
 struct SystemInfo {
-    std::wstring             cpu_name;          ///< Nome completo do processador
-    uint32_t                 cpu_logical_cores; ///< Núcleos lógicos (threads)
-    uint32_t                 cpu_physical_cores;///< Núcleos físicos (sem hyperthreading)
-    uint64_t                 ram_bytes;         ///< RAM física total em bytes
-    uint64_t                 page_total_bytes;  ///< Tamanho total do arquivo de paginação
-    uint64_t                 page_avail_bytes;  ///< Paginação disponível atualmente
-    std::wstring             os_name;           ///< ex.: L"Windows 11 (Build 22631)"
-    std::vector<GpuInfo>     gpus;              ///< GPUs detectadas via DXGI
-    VulkanInfo               vulkan;            ///< Versões Vulkan
-    DirectXInfo              directx;           ///< Versão máxima DirectX
-    OpenGLInfo               opengl;            ///< Versão OpenGL
-    std::vector<DiskInfo>    disks;             ///< Discos físicos (SSD/HDD)
-    MachineInfo              machine;           ///< Fabricante, modelo, nome do PC
-    std::wstring             current_api;       ///< API gráfica em uso
+    std::wstring             cpu_name;           ///< Nome completo do processador
+    uint32_t                 cpu_logical_cores;  ///< Núcleos lógicos (threads)
+    uint32_t                 cpu_physical_cores; ///< Núcleos físicos (sem hyperthreading)
+    uint64_t                 ram_bytes;          ///< RAM física total em bytes
+    uint64_t                 page_total_bytes;   ///< Tamanho total do arquivo de paginação
+    uint64_t                 page_avail_bytes;   ///< Paginação disponível atualmente
+    std::wstring             os_name;            ///< ex.: L"Windows 11 (Build 22631)"
+    std::vector<GpuInfo>     gpus;               ///< GPUs detectadas via DXGI
+    VulkanInfo               vulkan;             ///< Versões Vulkan
+    DirectXInfo              directx;            ///< Versão máxima DirectX
+    OpenGLInfo               opengl;             ///< Versão OpenGL
+    std::vector<DiskInfo>    disks;              ///< Discos físicos (SSD/HDD)
+    MachineInfo              machine;            ///< Fabricante, modelo, nome do PC
+    std::vector<MonitorInfo> monitors;           ///< Monitores físicos conectados
+    std::wstring             current_api;        ///< API gráfica em uso
 
     /**
      * @brief Preenche todos os campos consultando as APIs do SO.
@@ -104,4 +126,4 @@ struct SystemInfo {
      * @param con  Ponteiro não-nulo para o Console.
      */
     void PrintToConsole(class Console* con) const;
-};   
+};

@@ -2,218 +2,296 @@
 #include "pch.hpp"
 
 // Forward declarations — evita incluir headers pesados no .hpp
+class AppSettings;
 class MyResult;
 class FontManager;
+class FontScale;
 class App;
 class VulkanContext;
 class ImGuiContext_Wrapper;
 class Console;
 class StyleEditor;
+class MenuBar;
+class WindowsConsole;
 
 /**
  * @brief Singleton que centraliza o ciclo de vida de todos os recursos da aplicação.
  *
+ * RESPONSABILIDADES POR CAMADA
+ * -----------------------------
+ * A inicialização é dividida entre dois pontos de entrada distintos:
+ *
+ *  wWinMain()
+ *    → Memory::Init()       — cria a instância do singleton (new Memory)
+ *    → App::Run()           — cria janela, chama AllocAll(), roda o loop, destrói janela
+ *    → Memory::Get()->DestroyAll()  — destrói todos os recursos na ordem inversa
+ *    → Memory::Shutdown()   — destrói a instância do singleton (delete Memory)
+ *
+ *  App::Run()  (chamado de wWinMain)
+ *    → SDL_Init / SDL_CreateWindow
+ *    → Memory::Get()->AllocAll(window)   — aloca Vulkan, ImGui, fontes, console...
+ *    → loop principal
+ *    → SDL_DestroyWindow / SDL_Quit
+ *
+ * Fluxo completo em wWinMain():
+ * @code
+ *   Memory::Init();           // 1. cria o singleton antes de tudo
+ *
+ *   App app;
+ *   app.Run();                // 2. janela + AllocAll + loop + DestroyWindow
+ *
+ *   Memory::Get()->DestroyAll(); // 3. libera Vulkan, ImGui, fontes, etc.
+ *   Memory::Shutdown();          // 4. deleta o singleton
+ * @endcode
+ *
+ * POR QUE ESSA DIVISÃO?
+ * ----------------------
+ * - wWinMain controla apenas o ciclo de vida do singleton (Init/Shutdown).
+ * - App encapsula tudo que depende da janela SDL (criação, loop, destruição).
+ * - Memory::DestroyAll() fica em wWinMain (após App::Run retornar) para garantir
+ *   que os recursos Vulkan/ImGui sejam liberados ANTES de SDL_DestroyWindow e
+ *   ANTES de Memory::Shutdown deletar o singleton.
+ *
  * ORDEM DE ALLOC — encapsulada em AllocAll():
  * --------------------------------------------
- *  1. AllocVulkan()
- *       → lê g_App->g_Window internamente
- *       → detecta o monitor em que a janela está via SDL_GetDisplayForWindow()
- *       → lê resolução e DPI do monitor correto (não sempre o primário)
- *       → Initialize() + SetupWindow()
- *       SetupWindow DEVE vir antes do ImGui porque ImGui_ImplVulkan_Init
- *       exige que o swapchain já exista.
- *       (assert: info->ImageCount >= info->MinImageCount)
+ *  1. AllocWindowsConsole()  — console Win32 para debug (printf / OutputDebugString)
+ *  2. AllocVulkan()          — Initialize() + SetupWindow() + detecção do monitor
+ *  3. AllocApp()             — instância interna de App (lógica da aplicação)
+ *  4. AllocImGui()           — CreateContext + ImplSDL3_Init + ImplVulkan_Init
+ *  5. AllocFontManager()     — carrega TTFs + emoji no atlas ImGui
+ *  6. AllocFontScale()       — gerencia escala de fontes por DPI
+ *  7. AllocConsole()         — console ImGui (wide-char, histórico, comandos)
+ *  8. AllocStyleEditor()     — editor de estilo ImGui + carga de imgui_style.json
+ *  9. AllocMenuBar()         — barra de menu principal da aplicação
  *
- *  2. AllocImGui()
- *       → usa m_window_scale detectado em AllocVulkan()
- *       → ImGui::CreateContext() + ImplSDL3_Init + ImplVulkan_Init
- *
- *  3. AllocFontManager()
- *       → usa m_window_scale detectado em AllocVulkan()
- *       → LoadAllFontsWithEmoji() — requer contexto ImGui
- *
- *  4. AllocConsole()
- *       → Console::Console() chama ImGui::MemAlloc() — requer contexto ImGui
- *       (assert anterior: GImGui != 0)
- *
- *  5. AllocStyleEditor()
- *
- * ORDEM DE DESTROY — DestroyAll() faz a ordem inversa automaticamente.
- *
- * POR QUE SEM ARGUMENTOS?
- * ------------------------
- * Com g_App->g_Window atribuído antes de AllocAll(), o Memory coleta tudo:
- *
- *   SDL_Window*           → g_App->g_Window
- *   SDL_DisplayID         → SDL_GetDisplayForWindow(g_App->g_Window)
- *   int w, h              → SDL_GetWindowSize(g_App->g_Window, &w, &h)
- *   float scale           → SDL_GetDisplayContentScale(display_id)
- *   ImVector<const char*> → SDL_Vulkan_GetInstanceExtensions(&n)
+ * ORDEM DE DESTROY — DestroyAll() executa a ordem inversa automaticamente.
  *
  * DETECÇÃO DO MONITOR CORRETO
  * ----------------------------
- * SDL_GetPrimaryDisplay() retorna sempre o monitor principal do Windows,
- * independente de onde a janela será aberta. Em setups multi-monitor onde
- * o app abre no monitor secundário (ex.: com posição inicial fora do primário),
- * isso resulta em scale e DPI errados.
- *
- * SDL_GetDisplayForWindow() retorna o display em que a janela está atualmente.
+ * SDL_GetDisplayForWindow(window) retorna o display em que a janela está,
+ * independente de qual é o monitor primário do sistema.
  * O resultado é guardado em m_window_scale e reutilizado por AllocImGui()
- * e AllocFontManager() sem nova chamada SDL.
- *
- * PRÉ-REQUISITO: g_App->g_Window != nullptr quando AllocAll() é chamado.
- * Fluxo garantido em App::run():
- *   SDL_CreateWindow → g_Window = result → AllocGlobals() → Memory::AllocAll()
+ * e AllocFontManager() sem nova chamada SDL, garantindo DPI correto em
+ * setups multi-monitor onde o app pode abrir em um monitor secundário.
  */
 class Memory {
 public:
 
     // -------------------------------------------------------------------------
-    // Singleton
+    // Controle explícito do singleton — chamados em wWinMain
     // -------------------------------------------------------------------------
 
     /**
-     * @brief Retorna o ponteiro para a única instância do Memory.
+     * @brief Cria a instância do singleton em heap via new.
      *
-     * Meyers Singleton: construído na primeira chamada, destruído ao fim do programa.
-     * Thread-safe desde C++11.
+     * Deve ser a PRIMEIRA linha de wWinMain(), antes de qualquer chamada a Get().
+     * Chamar Get() antes de Init() retorna nullptr.
+     *
+     * Separado de AllocAll() para que o singleton exista antes mesmo de
+     * SDL_CreateWindow() ser chamado — caso algum sistema precise de Memory
+     * durante a fase de inicialização do SDL ou da janela em App::Run().
+     *
+     * @pre  s_instance == nullptr (assert em Debug se chamado duas vezes)
+     * @post s_instance != nullptr; Get() retorna ponteiro válido
+     */
+    const static void Init();
+
+    /**
+     * @brief Destroi a instância do singleton via delete.
+     *
+     * Deve ser a ÚLTIMA linha de wWinMain(), após DestroyAll() e após App::Run()
+     * ter retornado (garantindo que SDL_DestroyWindow já foi chamado).
+     * Após esta chamada Get() retorna nullptr.
+     *
+     * @pre  DestroyAll() já foi chamado
+     * @post s_instance == nullptr; Get() retorna nullptr
+     */
+    static void Shutdown();
+
+    /**
+     * @brief Retorna o ponteiro para a instância do singleton.
+     *
+     * @return Ponteiro válido entre Init() e Shutdown(); nullptr fora desse intervalo.
      */
     static Memory* Get();
 
     // -------------------------------------------------------------------------
-    // Lifecycle
+    // Lifecycle — chamados internamente por App::Run()
     // -------------------------------------------------------------------------
 
     /**
-     * @brief Aloca todos os recursos na ordem correta — sem argumentos externos.
+     * @brief Aloca todos os recursos na ordem correta.
      *
-     * Coleta internamente via g_App e SDL:
-     *   SDL_Window*           = g_App->g_Window
-     *   SDL_DisplayID         = SDL_GetDisplayForWindow(g_App->g_Window)
-     *   int w, h              = SDL_GetWindowSize(g_App->g_Window)
-     *   float scale           = SDL_GetDisplayContentScale(display_id)
-     *   ImVector<const char*> = SDL_Vulkan_GetInstanceExtensions()
+     * Chamado por App::Run() após SDL_CreateWindow(), passando a janela SDL
+     * recém-criada. A janela é armazenada em m_window para uso interno por
+     * todos os sub-métodos — sem parâmetros adicionais nem variáveis globais.
      *
-     * PRÉ-REQUISITO: g_App->g_Window já atribuído antes desta chamada.
+     * Memory não possui a janela — ela pertence a App::Run() e é destruída
+     * por SDL_DestroyWindow() após DestroyAll() ter sido chamado.
      *
-     * Internamente: AllocVulkan → AllocApp → AllocImGui → AllocFontManager
-     *               → AllocConsole → AllocStyleEditor
+     * @param window  SDL_Window* criado em App::Run(). Não pode ser nullptr.
+     * @return        MyResult::ok se todos os recursos foram alocados com sucesso.
      */
-    MyResult AllocAll();
+    MyResult AllocAll(SDL_Window* window);
 
     /**
-     * @brief Destroi todos os recursos na ordem inversa de alocação.
+     * @brief Destroi todos os recursos na ordem inversa de AllocAll().
      *
-     * Seguro chamar mesmo que alguns recursos não tenham sido alocados.
+     * Chamado em wWinMain() após App::Run() retornar — garantindo que a janela
+     * SDL ainda existe quando os recursos Vulkan são destruídos (Vulkan precisa
+     * da janela para destruir a surface antes de destruir a instance).
+     *
+     * Seguro chamar mesmo que apenas parte dos recursos tenha sido alocada.
+     * Após esta chamada todos os getters retornam nullptr.
      */
     MyResult DestroyAll();
 
     // -------------------------------------------------------------------------
-    // Alloc / Destroy individuais
+    // Alloc / Destroy individuais (públicos para uso em testes ou init parcial)
     // -------------------------------------------------------------------------
+	MyResult AllocAppSettings(); ///< Aloca AppSettings 
+	MyResult DestroyAppSettings(); ///< Destroi AppSettings
 
     /**
-     * @brief Inicializa o VulkanContext E configura a surface/swapchain.
+     * @brief Abre o console Win32 para saída de debug.
      *
-     * Detecta o monitor em que g_App->g_Window está via SDL_GetDisplayForWindow()
-     * e lê sua escala DPI via SDL_GetDisplayContentScale(display_id).
-     * O resultado é salvo em m_window_scale para uso em AllocImGui() e
-     * AllocFontManager() — sem nova chamada SDL nesses sub-métodos.
+     * Chama ::AllocConsole() da Win32 API e redireciona stdout/stderr/stdin.
+     * Útil em builds Debug de aplicações que usam subsistema Windows (sem
+     * console por padrão). Em builds Release geralmente é um no-op.
+     */
+    MyResult AllocWindowsConsole();
+    MyResult DestroyWindowsConsole(); ///< Fecha e libera o console Win32.
+
+    /**
+     * @brief Inicializa o VulkanContext e configura a surface/swapchain.
      *
-     * SetupWindow é feito aqui (não em run()) porque ImGui_ImplVulkan_Init,
-     * chamado em AllocImGui(), exige que o swapchain já exista.
-     * Chamar SetupWindow depois do AllocImGui causa:
-     *   Assertion failed: info->ImageCount >= info->MinImageCount
+     * Detecta o monitor via SDL_GetDisplayForWindow(m_window) e salva
+     * m_window_scale para AllocImGui() e AllocFontManager().
+     * SetupWindow() é chamado AQUI porque ImGui_ImplVulkan_Init() exige
+     * que o swapchain já exista (assert: info->ImageCount >= info->MinImageCount).
      */
     MyResult AllocVulkan();
-
-    /** @brief Destrói o VulkanContext (swapchain + device + instance). */
-    MyResult DestroyVulkan();
-
-    /** @brief Constrói App dentro do Memory (no-op se g_App externo). */
-    MyResult AllocApp();
-
-    /** @brief Destrói a instância App gerenciada pelo Memory. */
-    MyResult DestroyApp();
+    MyResult DestroyVulkan(); ///< Destrói swapchain + surface + device + instance.
 
     /**
-     * @brief Inicializa o ImGuiContext_Wrapper (ImGui::CreateContext + backends).
+     * @brief Constrói a instância interna de App (lógica da aplicação).
      *
-     * Usa m_window_scale detectado em AllocVulkan() — sem nova chamada SDL.
+     * Nota: o App externo (criado na stack de wWinMain) chama Run() que por
+     * sua vez chama AllocAll(). Este AllocApp() aloca um App *interno* ao
+     * Memory, separado do App externo — use conforme a arquitetura do projeto.
+     */
+    MyResult AllocApp();
+    MyResult DestroyApp(); ///< Destrói a instância interna de App.
+
+    /**
+     * @brief Inicializa o ImGuiContext_Wrapper (CreateContext + backends SDL3/Vulkan).
      *
-     * DEVE ser chamado após AllocVulkan (swapchain já existe).
-     * DEVE ser chamado antes de AllocFontManager e AllocConsole.
+     * Usa m_window e m_window_scale detectados em AllocVulkan().
+     * DEVE ser chamado após AllocVulkan() — o swapchain precisa existir.
      */
     MyResult AllocImGui();
-
-    /** @brief Destrói o ImGuiContext_Wrapper (ImGui::DestroyContext). */
-    MyResult DestroyImGui();
+    MyResult DestroyImGui(); ///< Destrói o ImGuiContext (ImGui::DestroyContext + shutdowns).
 
     /**
      * @brief Carrega todas as fontes TTF + emoji no atlas ImGui.
      *
-     * Usa m_window_scale detectado em AllocVulkan() — tamanho base = 13.0f * scale.
-     *
-     * Requer contexto ImGui ativo. Deve ser chamado ANTES do primeiro NewFrame().
+     * Usa m_window_scale de AllocVulkan(). Tamanho base = 13.0f * m_window_scale.
+     * Deve ser chamado ANTES do primeiro NewFrame() — o atlas é enviado à GPU neste ponto.
      */
     MyResult AllocFontManager();
-
-    /** @brief Libera o FontManager. */
-    MyResult DestroyFontManager();
+    MyResult DestroyFontManager(); ///< Libera o FontManager.
 
     /**
-     * @brief Constrói o Console ImGui (wide-char, comandos, histórico).
-     *
-     * Console::Console() chama ImGui::MemAlloc() internamente.
-     * DEVE ser chamado após AllocImGui().
+     * @brief Inicializa o FontScale (escala de fontes por DPI).
+     * Deve ser chamado após AllocFontManager().
+     */
+    MyResult AllocFontScale();
+    MyResult DestroyFontScale(); ///< Destrói o FontScale.
+
+    /**
+     * @brief Constrói o Console ImGui (wide-char, histórico, autocomplete).
+     * DEVE ser chamado após AllocImGui() — Console usa ImGui::MemAlloc().
      */
     MyResult AllocConsole();
+    MyResult DestroyConsole(); ///< Destrói o Console ImGui e libera wide strings.
 
-    /** @brief Destrói o Console ImGui e libera todos os wide strings. */
-    MyResult DestroyConsole();
-
-    /** @brief Constrói o StyleEditor e carrega imgui_style.json. */
+    /**
+     * @brief Constrói o StyleEditor e carrega imgui_style.json.
+     * Silencioso se o arquivo não existir — mantém estilo padrão.
+     */
     MyResult AllocStyleEditor();
+    MyResult DestroyStyleEditor(); ///< Destrói o StyleEditor.
 
-    /** @brief Destrói o StyleEditor. */
-    MyResult DestroyStyleEditor();
+    /**
+     * @brief Constrói a MenuBar principal da aplicação.
+     * DEVE ser chamado após AllocImGui() — depende do contexto ImGui ativo.
+     */
+    MyResult AllocMenuBar();
+    MyResult DestroyMenuBar(); ///< Destrói a MenuBar.
 
     // -------------------------------------------------------------------------
-    // Getters
+    // Getters — retornam nullptr se o recurso correspondente não foi alocado
     // -------------------------------------------------------------------------
 
-    App*                  GetApp();         ///< nullptr se não alocado pelo Memory
-    VulkanContext*        GetVulkan();      ///< nullptr se não alocado
-    ImGuiContext_Wrapper* GetImGui();       ///< nullptr se não alocado
-    FontManager*          GetFontManager(); ///< nullptr se não alocado
-    Console*              GetConsole();     ///< nullptr se não alocado
-    StyleEditor*          GetStyleEditor(); ///< nullptr se não alocado
-     Memory();
-    ~Memory();
+    WindowsConsole*       GetWindowsConsole(); ///< nullptr se não alocado
+    VulkanContext*        GetVulkan();         ///< nullptr se não alocado
+    App*                  GetApp();            ///< nullptr se não alocado
+    ImGuiContext_Wrapper* GetImGui();          ///< nullptr se não alocado
+    FontManager*          GetFontManager();    ///< nullptr se não alocado
+    FontScale*            GetFontScale();      ///< nullptr se não alocado
+    Console*              GetConsole();        ///< nullptr se não alocado
+    StyleEditor*          GetStyleEditor();    ///< nullptr se não alocado
+    MenuBar*              GetMenuBar();        ///< nullptr se não alocado
+
+    /** @brief Retorna a SDL_Window* armazenada em AllocAll(). nullptr antes disso. */
+    SDL_Window*           GetWindow() const;
+	AppSettings* GetAppSettings() const; ///< Atalho para GetApp()->GetAppSettings()
+
 private:
-   
 
-    std::unique_ptr<App>                  app_instance;
+    // Construtor/destrutor privados — apenas Init()/Shutdown() criam/destroem
+    Memory();
+    ~Memory();
+
+    // Ponteiro estático — nullptr fora do intervalo Init()…Shutdown()
+    static Memory* s_instance; ///< Controlado exclusivamente por Init() e Shutdown()
+
+    // -------------------------------------------------------------------------
+    // Recursos gerenciados
+    // -------------------------------------------------------------------------
+	std::unique_ptr<AppSettings>          app_settings_instance;
+    std::unique_ptr<WindowsConsole>       windows_console_instance;
     std::unique_ptr<VulkanContext>        vulkan_instance;
+    std::unique_ptr<App>                  app_instance;
     std::unique_ptr<ImGuiContext_Wrapper> imgui_instance;
     std::unique_ptr<FontManager>          font_manager_instance;
+    std::unique_ptr<FontScale>            font_scale_instance;
     std::unique_ptr<Console>              console_instance;
     std::unique_ptr<StyleEditor>          style_editor_instance;
-
-    bool app_allocated          = false; ///< true após AllocApp()
-    bool vulkan_allocated       = false; ///< true após AllocVulkan()
-    bool imgui_allocated        = false; ///< true após AllocImGui()
-    bool font_manager_allocated = false; ///< true após AllocFontManager()
-    bool console_allocated      = false; ///< true após AllocConsole()
-    bool style_editor_allocated = false; ///< true após AllocStyleEditor()
+    std::unique_ptr<MenuBar>              menu_bar_instance;
 
     // -------------------------------------------------------------------------
-    // Dados do monitor detectados em AllocVulkan() — reutilizados pelos outros
-    // sub-métodos sem nova consulta ao SDL.
+    // Flags de estado — true somente após o Alloc correspondente ter sucedido
     // -------------------------------------------------------------------------
 
-    float         m_window_scale  = 1.0f; ///< SDL_GetDisplayContentScale() do monitor da janela
-    SDL_DisplayID m_display_id    = 0;    ///< SDL_GetDisplayForWindow() — 0 se não detectado
-    int           m_display_w     = 0;    ///< Resolução horizontal do monitor (pixels)
-    int           m_display_h     = 0;    ///< Resolução vertical do monitor (pixels)
+	bool app_settings_allocated = false; ///< true após AllocAppSettings()
+    bool windows_console_allocated = false; ///< true após AllocWindowsConsole()
+    bool vulkan_allocated          = false; ///< true após AllocVulkan()
+    bool app_allocated             = false; ///< true após AllocApp()
+    bool imgui_allocated           = false; ///< true após AllocImGui()
+    bool font_manager_allocated    = false; ///< true após AllocFontManager()
+    bool font_scale_allocated      = false; ///< true após AllocFontScale()
+    bool console_allocated         = false; ///< true após AllocConsole()
+    bool style_editor_allocated    = false; ///< true após AllocStyleEditor()
+    bool menu_bar_allocated        = false; ///< true após AllocMenuBar()
+
+    // -------------------------------------------------------------------------
+    // Janela e dados do monitor — detectados em AllocVulkan()
+    // -------------------------------------------------------------------------
+
+    SDL_Window*   m_window       = nullptr; ///< Referência não-possuidora — pertence a App::Run()
+    float         m_window_scale = 1.0f;    ///< SDL_GetDisplayContentScale() do monitor da janela
+    SDL_DisplayID m_display_id   = 0;       ///< SDL_GetDisplayForWindow() — 0 se não detectado
+    int           m_display_w    = 0;       ///< Resolução horizontal do monitor em pixels
+    int           m_display_h    = 0;       ///< Resolução vertical do monitor em pixels
 };

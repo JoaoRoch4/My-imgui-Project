@@ -71,7 +71,9 @@ bool ImGuiContext_Wrapper::Initialize(SDL_Window* window,
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;    // gamepad navigation
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;        // dockable windows
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;     // multi-viewport
-
+    io.ConfigFlags |= ImGuiViewportFlags_TopMost;
+    io.ConfigFlags |= ImGuiViewportFlags_IsMinimized;
+    io.ConfigFlags |= ImGuiViewportFlags_IsFocused;
     // Apply Windows 11 Mica theme; fall back to default if file is missing
     MicaTheme::ThemeConfig theme = MicaTheme::LoadThemeFromFile("mica_theme.json");
     MicaTheme::ApplyMicaTheme(theme);

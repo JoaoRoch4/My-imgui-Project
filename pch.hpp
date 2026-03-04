@@ -11,7 +11,7 @@
 #define OPENGL 0
 #define IMGUI 1
 #define IMPLOT 1
-#define IMPLOT3D 1
+#define IMPLOT3D 0
 #define PLUTO_SVG 1
 #define STB 1
 #define IMGUI_ENABLE_TEST_ENGINE 0
@@ -93,10 +93,13 @@
 	#include <sal.h>
 	#include <stringapiset.h>
 	#include <winioctl.h>
-#include <winbase.h>
-#include <winuser.h>
-#include <corecrt.h> // _countof, _vsnprintf_s, _vscprintf, _vscprintf_l
-#include <corecrt_wstdio.h> // _vscwprintf, vswprintf_s
+	#include <winbase.h>
+	#include <winuser.h>
+	#include <corecrt.h> // _countof, _vsnprintf_s, _vscprintf, _vscprintf_l
+	#include <corecrt_wstdio.h> // _vscwprintf, vswprintf_s
+	#include <initguid.h> // Deve vir ANTES dos headers que usam o GUID
+	#include <devguid.h>
+	#include <Ntddvdeo.h>
 
 	#pragma comment(lib, "winmm.lib")
 	#pragma comment(lib, "version.lib")
@@ -109,6 +112,7 @@
 	#pragma comment(lib, "ole32.lib")
 	#pragma comment(lib, "oleaut32.lib")
 	#pragma comment(lib, "advapi32.lib")
+	#pragma comment(lib, "setupapi.lib")
 
 	// ============================================================================
 	// DirectX 11
@@ -409,6 +413,7 @@
 	#endif // !defined(IMGUI) || !defined(IMPLOT)
 
 	#include <implot3d.h>
+	#include <implot3d_internal.h>
 
 #endif // IMPLOT3D
 
@@ -508,23 +513,23 @@
 #pragma warning(disable : 4267) 
 #pragma warning(disable : 4365)
 
-INLINE const static size_t Get_Len(_Post_ _Notnull_ const char* s) noexcept {
+[[nodiscard]] INLINE const static size_t Get_Len(_Post_ _Notnull_ const char* s) noexcept {
 	return static_cast<const size_t>(MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0));
 }
 
- INLINE const static size_t Get_Len(const std::string& s) noexcept {
+ [[nodiscard]] INLINE const static size_t Get_Len(const std::string& s) noexcept {
 	return static_cast<const size_t>(MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, NULL, 0));
 }
 
- INLINE const static size_t Get_Len(_Post_ _Notnull_ const wchar_t* s) noexcept {
+ [[nodiscard]] INLINE const static size_t Get_Len(_Post_ _Notnull_ const wchar_t* s) noexcept {
 	return static_cast<const size_t>(WideCharToMultiByte(CP_UTF8, 0, s, -1, NULL, 0, NULL, NULL));
 }
 
-INLINE const static size_t Get_Len(const std::wstring& s) noexcept {
+[[nodiscard]] INLINE const static size_t Get_Len(const std::wstring& s) noexcept {
 	return static_cast<const size_t>(WideCharToMultiByte(CP_UTF8, 0, s.c_str(), -1, NULL, 0, NULL, NULL));
 }
 
-INLINE static const wchar_t* Win_char_to_Wchar(const std::string& s) {
+[[nodiscard]] INLINE static const wchar_t* Win_char_to_Wchar(const std::string& s) {
 	if(s.empty()) return L"nullptr";
 	const static size_t len =  Get_Len(s.c_str());
 	static std::wstring ws(len, 0);
@@ -532,7 +537,7 @@ INLINE static const wchar_t* Win_char_to_Wchar(const std::string& s) {
 	return ws.c_str();
 }
 
-INLINE static const wchar_t* Win_char_to_Wchar(const char* s) {
+[[nodiscard]] INLINE static const wchar_t* Win_char_to_Wchar(const char* s) {
 	if(s == nullptr || *s == '\0') return L"nullptr";
 
 	const static size_t len =  Get_Len(s);
@@ -542,7 +547,7 @@ INLINE static const wchar_t* Win_char_to_Wchar(const char* s) {
 	return ws.c_str();
 }
 
-INLINE static const std::wstring& Win_str_to_Wchar(const std::string& e) {
+[[nodiscard]] INLINE static const std::wstring& Win_str_to_Wchar(const std::string& e) {
 	if(e.empty()) return L"Error";
 
 	const static size_t len = Get_Len(e.c_str());
@@ -552,7 +557,7 @@ INLINE static const std::wstring& Win_str_to_Wchar(const std::string& e) {
 	return result;
 }
 
-INLINE static const std::wstring& Win_str_to_Wchar(const char* s) {
+[[nodiscard]] INLINE static const std::wstring& Win_str_to_Wchar(const char* s) {
 	if(s == NULL || *s == '\0') {
 		static const std::wstring& res(L"Error");
 
@@ -565,7 +570,7 @@ INLINE static const std::wstring& Win_str_to_Wchar(const char* s) {
 	return ws;
 }
 
-INLINE static const std::string Win_wstr_to_str(const std::wstring &wstr) {
+[[nodiscard]] INLINE static const std::string Win_wstr_to_str(const std::wstring &wstr) {
 
 	if( wstr.empty() ) return "error";
 	static size_t size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], static_cast<int>(wstr.size()), NULL, 0, NULL, NULL);
@@ -574,7 +579,7 @@ INLINE static const std::string Win_wstr_to_str(const std::wstring &wstr) {
 	return static_cast<const std::string&>(strTo);
 }
 
-INLINE static const std::string Win_wstr_to_str(const wchar_t *wstr) {
+[[nodiscard]] INLINE static const std::string Win_wstr_to_str(const wchar_t *wstr) {
 
 	if( wstr == nullptr || *wstr == '\0') return std::string("error");
 	static size_t size_needed = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
@@ -583,7 +588,7 @@ INLINE static const std::string Win_wstr_to_str(const wchar_t *wstr) {
 	return strTo;
 }
 
-INLINE static const char* Win_Wchar_to_char(const std::wstring &wstr) {
+[[nodiscard]] INLINE static const char* Win_Wchar_to_char(const std::wstring &wstr) {
 
 	if( wstr.empty() ) return "error";
 	const static size_t size_needed = Get_Len(wstr);
@@ -593,7 +598,7 @@ INLINE static const char* Win_Wchar_to_char(const std::wstring &wstr) {
 	return result;
 }
 
-INLINE static const char* Win_Wchar_to_char(const wchar_t *wstr) {
+[[nodiscard]] INLINE static const char* Win_Wchar_to_char(const wchar_t *wstr) {
 
 	if( wstr == nullptr || *wstr == '\0') return "error";
 	const static size_t size_needed = Get_Len(wstr);

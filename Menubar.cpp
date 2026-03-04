@@ -57,7 +57,7 @@ void MenuBar::Draw() {
         DrawMenuEdit();                           // Edit
         DrawMenuView();                           // View
         DrawMenuHelp();                           // Help
-        DrawFpsCounter(ImGui::GetIO().Framerate); // FPS à direita
+        //DrawFpsCounter(ImGui::GetIO().Framerate); // FPS à direita
 
         ImGui::EndMainMenuBar();
     }
@@ -173,7 +173,7 @@ void MenuBar::DrawMenuHelp() {
 
         if(ImGui::MenuItem("Sobre..."))
             m_ShowAbout = true; // DrawAboutPopup() vê essa flag no mesmo frame
-
+             ImGui::Separator();
         ImGui::EndMenu();
     }
 }

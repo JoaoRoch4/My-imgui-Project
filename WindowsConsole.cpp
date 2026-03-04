@@ -37,7 +37,7 @@ HWND WindowsConsole::s_hwnd = nullptr;                    // preenchido no init(
  *
  * @param hotkey Código de tecla virtual (VK_F1, VK_F2, etc.).
  */
-void WindowsConsole::init(int hotkey) {
+MyResult WindowsConsole::init(int hotkey) {
     s_hotkey = hotkey; // salva a tecla para ser verificada em poll_hotkey()
 
     AllocConsole(); // cria a janela de console do Windows associada ao processo
@@ -73,6 +73,8 @@ void WindowsConsole::init(int hotkey) {
 
     ShowWindow(s_hwnd, SW_HIDE); // começa escondido — usuário decide quando abrir
     s_visible = false;           // estado interno sincronizado com SW_HIDE
+
+	return MyResult::ok; // sucesso — o console está pronto para uso
 }
 
 // ============================================================================
@@ -85,7 +87,7 @@ void WindowsConsole::init(int hotkey) {
  * Deve ser chamado ao encerrar o programa, após sair do loop principal.
  * Após esta chamada, stdout/stderr voltam ao comportamento padrão.
  */
-void WindowsConsole::shutdown() {
+MyResult WindowsConsole::shutdown() {
     if(s_hwnd) // só libera se o console foi alocado pelo init()
     {
         fclose(stdout); // fecha o stream redirecionado para CONOUT$
@@ -95,6 +97,7 @@ void WindowsConsole::shutdown() {
         s_hwnd = nullptr; // limpa o handle para evitar uso após free
         s_visible = false;   // reseta o estado
     }
+	return MyResult::ok; // sucesso — o console foi liberado
 }
 
 // ============================================================================

@@ -44,6 +44,7 @@
 #include "App.hpp"            // classe App + extern App* g_App
 #include "WindowsConsole.hpp" // console externo Win32 com hotkey
 #include "MyResult.hpp"
+#include "Memory.hpp"
 
 // =============================================================================
 // main — ponto de entrada de console (/SUBSYSTEM:CONSOLE)
@@ -62,8 +63,10 @@
  * contrário.
  */
 int main(int argc, char *argv[]) {
-  App app;                     // construtor: g_App = this
-  MyResult result = app.run(); // encapsula SDL_Init → loop → Close
+    (argc);
+	(argv);
+  App m_app;                     // construtor: g_App = this
+  MyResult result = m_app.run(); // encapsula SDL_Init → loop → Close
   return MR_IS_OK(result) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
@@ -96,20 +99,31 @@ _Use_decl_annotations_ INT  WINAPI  wWinMain(
     _In_     LPWSTR    lpCmdLine,
     _In_     int       nCmdShow) {
 
+    (hInstance);
+    (hPrevInstance);
+    (lpCmdLine);
+    (nCmdShow);
+
+    // ---- 1. Memory::AllocAll — todos os subsistemas na ordem correta --------
+
+  Memory::Init(); 
 	
   // Console externo Win32 inicializado ANTES de App para capturar
   // todos os logs de inicialização do Vulkan, ImGui e FontManager.
   WindowsConsole::init(VK_F1); // F1 abre/fecha o console externo
   std::cout <<  termcolor::blue << "Console externo inicializado. Pressione F1 para abrir/fechar. João André" << termcolor::reset << std::endl;
-    //App *app = Memory::Get()->GetApp(); // aloca App para que g_App seja válido durante run()
- app = std::make_unique<App>();                     // construtor: g_App = this
-  MyResult result = app->run(); // encapsula SDL_Init → loop → Close
+  Memory* mem = Memory::Get();
+	mem->AllocApp(); 
+ App* app = mem->GetApp();
+ app->Startup();
+app->run();              // construtor: g_App = this
 
   // Shutdown após run() — Close() já liberou todos os recursos.
   WindowsConsole::shutdown();
-    app.reset();
-
-  return MR_IS_OK(result) ? EXIT_SUCCESS : EXIT_FAILURE;
+Memory::Get()->DestroyAll(); //  → destrói Vulkan usando g_Window aindaido
+Memory::Shutdown(); //           → delete Memory
+SDL_DestroyWindow(app->g_Window); //       → janela destruída APÓS Vulkan
+app = nullptr;
 }
 
 RENDERDOC_API_1_1_2 *rdoc_api = NULL;
@@ -117,7 +131,7 @@ RENDERDOC_API_1_1_2 *rdoc_api = NULL;
 void InitRenderDoc() {
     // Tenta obter o handle da DLL se o RenderDoc estiver injetado no processo
     if (HMODULE mod = GetModuleHandleA("renderdoc.dll")) {
-        pRENDERDOC_GetAPI RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
+        pRENDERDOC_GetAPI RENDERDOC_GetAPI = std::bit_cast<pRENDERDOC_GetAPI>(GetProcAddress(mod, "RENDERDOC_GetAPI"));
         int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
         if (ret != 1) rdoc_api = NULL;
     }

@@ -88,7 +88,7 @@ public:
     /**
      * Get current style settings
      */
-    const StyleSettings& GetSettings() const { return m_Settings; }
+    const StyleSettings& GetAppSettings() const { return m_Settings; }
 
     /**
      * Set style settings
