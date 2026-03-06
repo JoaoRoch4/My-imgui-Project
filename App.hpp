@@ -2,8 +2,8 @@
 
 #include "pch.hpp"
 #include "MyResult.hpp"
+#include "Appsettings.hpp" // AppSettings + WindowSettings + FontSettings + StyleSettings + ColorSettings+
 #include "Image.hpp"
-#include "Appsettings.hpp" // AppSettings + WindowSettings + FontSettings + StyleSettings + ColorSettings
 
 /**
  * @file App.hpp
@@ -37,6 +37,7 @@ class Console;
 class StyleEditor;
 class MenuBar;
 struct SDL_Window;
+class Image;
 
 // ============================================================================
 // ScrollingBuffer — buffer circular para gráficos ImPlot

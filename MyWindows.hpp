@@ -7,6 +7,7 @@ class MyWindows : public App {
 public:
 	MyWindows();
 	~MyWindows();
+	void Init();
 
 	MyResult CreateWindows();
 	MyResult WindowControls();
@@ -18,7 +19,7 @@ public:
 
 private:
 class ImageViewerFactory* m_image_viewer_factory;
-	class App*					m_App;
+	 App*					m_App;
 	class VulkanContext*		g_Vulkan;
 	class ImGuiContext_Wrapper* g_ImGui;
 	class Console*				g_Console;

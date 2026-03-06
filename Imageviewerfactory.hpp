@@ -2,37 +2,47 @@
 #include "pch.hpp"
 #include "ImageViewerWindow.hpp"
 
+#include <winrt/base.h>   // winrt::com_ptr
+#include <wil/resource.h> // wil::unique_cotaskmem_string
+
 /**
  * @file ImageViewerFactory.hpp
  * @brief Factory e gerenciador do ciclo de vida de janelas de imagem.
  *
- * PADRÃO FACTORY
- * ---------------
- * ImageViewerFactory é o único ponto de criação de ImageViewerWindow.
- * Cada chamada a OpenFileDialog() ou OpenFile() produz uma nova janela
- * independente — mesma imagem pode ser aberta múltiplas vezes.
+ * SEPARAÇÃO DRAW / CLEANUP — PORQUÊ É OBRIGATÓRIA
+ * -------------------------------------------------
+ * O loop de renderização Vulkan + ImGui tem uma ordem rígida:
  *
- * O factory:
- *  - Abre o explorador do Windows via IFileOpenDialog (COM moderno)
- *  - Cria uma nova ImageViewerWindow com ID único crescente
- *  - Armazena a janela em m_windows (std::vector de unique_ptr)
- *  - Chama Draw() em todas as janelas abertas a cada frame
- *  - Remove janelas fechadas (IsOpen() == false) após cada frame
+ *   [CPU — construção do frame]
+ *     ImGui::NewFrame()
+ *     DrawAll()              ← só ImGui::Begin/Image/End, SEM Vulkan
+ *     ImGui::Render()
  *
- * INTEGRAÇÃO COM MyWindows
- * -------------------------
- * Em MyWindows.hpp: adicione "ImageViewerFactory m_image_viewer_factory;"
- * Em MyWindows::CreateWindows(): chame "m_image_viewer_factory.DrawAll();"
- * Em alguma janela: adicione "m_image_viewer_factory.DrawOpenButton();"
+ *   [GPU — submissão]
+ *     FrameRender()          ← vkBeginCommandBuffer ... vkQueueSubmit
+ *     FramePresent()         ← vkQueuePresentKHR
  *
- * DIALOGO DE ARQUIVO  (IFileOpenDialog)
- * ----------------------------------------
- * Usa a API COM moderna (Windows Vista+) em vez de GetOpenFileNameW.
- * Vantagens: visual nativo do Windows 10/11, suporte a caminhos longos,
- * múltiplos tipos de arquivo via SetFileTypes().
+ *   [Cleanup — seguro]
+ *     PostFrameCleanup()     ← vkDeviceWaitIdle + destruição de recursos
  *
- * CoInitializeEx / CoUninitialize são chamados apenas se necessário —
- * a classe verifica se COM já foi inicializado na thread.
+ * Chamar vkDeviceWaitIdle DENTRO de DrawAll() (entre NewFrame e Render)
+ * corrompe o estado do Vulkan e causa VK_ERROR_DEVICE_LOST no vkQueueSubmit
+ * seguinte.  DrawAll() não deve tocar em nenhuma API Vulkan — só ImGui.
+ *
+ * PostFrameCleanup() é chamado DEPOIS de FramePresent(), quando a GPU
+ * terminou o frame e é seguro destruir qualquer recurso.
+ *
+ * INTEGRAÇÃO NO LOOP PRINCIPAL (MyWindows / App)
+ * ------------------------------------------------
+ *   // Fase 1 — construção ImGui (sem Vulkan)
+ *   m_factory.DrawAll();
+ *
+ *   // Fase 2 — submissão GPU
+ *   g_VulkanContext->FrameRender(draw_data);
+ *   g_VulkanContext->FramePresent();
+ *
+ *   // Fase 3 — cleanup seguro, após submit+present
+ *   m_factory.PostFrameCleanup();
  */
 class ImageViewerFactory {
 public:
@@ -44,11 +54,11 @@ public:
     /** @brief Filtros exibidos no diálogo. Pares {nome, extensões}. */
     static constexpr std::array<std::pair<const wchar_t*, const wchar_t*>, 5>
     FILE_FILTERS = { {
-        { L"Imagens",                  L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif" },
-        { L"PNG (*.png)",              L"*.png"  },
-        { L"JPEG (*.jpg, *.jpeg)",     L"*.jpg;*.jpeg" },
-        { L"BMP (*.bmp)",              L"*.bmp"  },
-        { L"TGA (*.tga)",              L"*.tga"  }
+        { L"Imagens",               L"*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.gif" },
+        { L"PNG (*.png)",           L"*.png"        },
+        { L"JPEG (*.jpg, *.jpeg)",  L"*.jpg;*.jpeg" },
+        { L"BMP (*.bmp)",           L"*.bmp"        },
+        { L"TGA (*.tga)",           L"*.tga"        }
     } };
 
     // =========================================================================
@@ -58,90 +68,68 @@ public:
     ImageViewerFactory()  noexcept;
     ~ImageViewerFactory() noexcept;
 
-    // Não copiável — gerencia recursos COM e janelas com posse única
     ImageViewerFactory(const ImageViewerFactory&)            = delete;
     ImageViewerFactory& operator=(const ImageViewerFactory&) = delete;
-
-    // Movível
-    ImageViewerFactory(ImageViewerFactory&&)            = default;
-    ImageViewerFactory& operator=(ImageViewerFactory&&) = default;
+    ImageViewerFactory(ImageViewerFactory&&)                 = default;
+    ImageViewerFactory& operator=(ImageViewerFactory&&)      = default;
 
     // =========================================================================
     // API pública
     // =========================================================================
 
     /**
-     * @brief Abre o explorador do Windows e cria uma nova janela para a
-     *        imagem selecionada.
-     *
-     * Usa IFileOpenDialog (COM). Bloqueante até o usuário confirmar ou cancelar.
-     * Se o usuário cancelar, nenhuma janela é criada.
-     *
-     * @return true se uma imagem foi selecionada e a janela criada.
+     * @brief Abre o explorador do Windows e cria janelas para as imagens
+     *        seleccionadas (suporta multi-seleção).
+     * @return true se pelo menos uma imagem foi aberta.
      */
     bool OpenFileDialog();
 
     /**
-     * @brief Cria uma nova janela de visualização para um arquivo já conhecido.
-     *
-     * Útil para abrir imagens programaticamente (ex.: drag-and-drop futuro).
-     *
-     * @param filepath  Caminho wide completo do arquivo.
-     * @return          Ponteiro não-possuidor para a janela criada;
-     *                  nullptr se o caminho estiver vazio.
+     * @brief Cria uma nova janela para um caminho já conhecido.
+     * @param filepath  Caminho wide completo.
+     * @return          Ponteiro não-possuidor; nullptr se caminho vazio.
      */
     ImageViewerWindow* OpenFile(std::wstring filepath);
 
     /**
-     * @brief Desenha TODAS as janelas abertas e remove as fechadas.
+     * @brief Fase 1 — só ImGui, zero Vulkan.
      *
-     * Chame uma vez por frame em MyWindows::CreateWindows().
-     * A remoção de janelas fechadas ocorre no final do frame — seguro
-     * chamar Draw() de todas as janelas antes de remover.
+     * Chame entre ImGui::NewFrame() e ImGui::Render().
+     * Marca janelas fechadas em m_pending_destroy mas NÃO as destrói.
+     * A destruição de recursos Vulkan acontece em PostFrameCleanup().
      */
     void DrawAll();
 
     /**
-     * @brief Desenha um botão "Abrir Imagem..." que abre o diálogo ao clicar.
+     * @brief Fase 2 — cleanup seguro após FramePresent().
      *
-     * Conveniente para embutir o botão em qualquer janela ImGui existente
-     * (ex.: toolbar da janela WindowControls ou uma janela dedicada).
+     * Chame DEPOIS de FrameRender() + FramePresent(), nunca antes.
+     * Se houver janelas pendentes de destruição, faz vkDeviceWaitIdle
+     * e liberta os recursos Vulkan.
+     *
+     * Chamar antes do submit causa VK_ERROR_DEVICE_LOST.
+     */
+    void PostFrameCleanup();
+
+    /**
+     * @brief Botão "Abrir Imagem..." embutível em qualquer janela ImGui.
      */
     void DrawOpenButton();
 
     /**
-     * @brief Fecha e remove todas as janelas de imagem abertas.
+     * @brief Fecha todas as janelas imediatamente (com GPU sync).
+     * Seguro chamar apenas fora do loop de render (ex.: shutdown).
      */
     void CloseAll();
 
-    /** @brief Número de janelas de imagem atualmente abertas. */
+    /** @brief Número de janelas actualmente abertas. */
     [[nodiscard]] std::size_t GetOpenCount() const noexcept;
 
 private:
 
-    // =========================================================================
-    // Estado interno
-    // =========================================================================
+    std::vector<std::unique_ptr<ImageViewerWindow>> m_windows;        ///< Janelas vivas
+    std::vector<std::unique_ptr<ImageViewerWindow>> m_pending_destroy; ///< Aguardam GPU idle
 
-    /// Janelas de imagem abertas — cada uma possui sua Image Vulkan
-    std::vector<std::unique_ptr<ImageViewerWindow>> m_windows;
-
-    int  m_next_id;    ///< Próximo ID a ser atribuído (começa em 1, incrementa)
-    bool m_com_init;   ///< true se CoInitializeEx foi chamado por esta instância
-
-    // =========================================================================
-    // Helpers privados
-    // =========================================================================
-
-    /**
-     * @brief Remove da lista as janelas com IsOpen() == false.
-     *
-     * Chamado no final de DrawAll() — após Draw() de todas as janelas,
-     * para que nenhuma janela seja destruída enquanto está sendo desenhada.
-     *
-     * Usa erase-remove idiom com unique_ptr: as janelas removidas têm seus
-     * destruidores chamados aqui, o que por sua vez chama Image::Unload()
-     * e libera os recursos Vulkan.
-     */
-    void RemoveClosed();
+    int  m_next_id;  ///< Próximo ID único (começa em 1)
+    bool m_com_init; ///< true se CoInitializeEx foi chamado por esta instância
 };

@@ -83,6 +83,7 @@ public:
      */
     bool Load(const void* data, size_t data_size);
 
+    bool LoadFromMemory(const unsigned char* pixels, int width, int height);
     /**
      * @brief Libera todos os recursos Vulkan desta imagem.
      * Seguro chamar mesmo se a imagem não estiver carregada.

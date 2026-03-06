@@ -88,7 +88,11 @@ void MenuBar::DrawMenuFile() {
 
         if(ImGui::MenuItem("New"))  { /* TODO */ }
         if(ImGui::MenuItem("Open")) { /* TODO */ }
-		if (ImGui::MenuItem("New Picture")) { m_ImageViewerFactory->DrawOpenButton(); }
+		if (ImGui::MenuItem("New Picture")) {
+			ImGui::Begin("pic");
+			m_ImageViewerFactory->DrawOpenButton();
+			ImGui::End();
+		}
 
 
 

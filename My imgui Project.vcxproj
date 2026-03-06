@@ -61,7 +61,7 @@
     <SpectreMitigation>Spectre</SpectreMitigation>
     <PlatformToolset>v145</PlatformToolset>
     <MSVCPreviewEnabled>true</MSVCPreviewEnabled>
-    <EnableUnitySupport>true</EnableUnitySupport>
+    <EnableUnitySupport>false</EnableUnitySupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -108,7 +108,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>$(VC_IncludePath);$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\externalplutovg\\source;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\external\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ProjectDir)\external\implot3d;$(ProjectDir)\external\freetype\include;$(ProjectDir)\external\freetype\src;$(ProjectDir)\external\freetype\src\base;$(ProjectDir)\external\freetype\include\freetype\internal;$(ProjectDir)\external\freetype\include\freetype\internal\services;$(ProjectDir)\external\freetype\include\freetype\internal\config;$(ProjectDir)\external\dlg\include;$(ProjectDir)\external\dlg\src;$(ProjectDir)\external\json\single_include;$(ProjectDir)\external\termcolor\include\termcolor;$(ProjectDir)\external\fmt\include;$(ProjectDir)\external\renderdoc\renderdoc\api\app;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>$(VC_IncludePath);$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\externalplutovg\\source;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ProjectDir)\external\implot3d;$(ProjectDir)\external\freetype\include;$(ProjectDir)\external\freetype\src;$(ProjectDir)\external\freetype\src\base;$(ProjectDir)\external\freetype\include\freetype\internal;$(ProjectDir)\external\freetype\include\freetype\internal\services;$(ProjectDir)\external\freetype\include\freetype\internal\config;$(ProjectDir)\external\dlg\include;$(ProjectDir)\external\dlg\src;$(ProjectDir)\external\json\single_include;$(ProjectDir)\external\termcolor\include\termcolor;$(ProjectDir)\external\fmt\include;$(ProjectDir)\external\renderdoc\renderdoc\api\app;D:\source\cpp\My imgui Project\stb;$(ExternalIncludePath)</ExternalIncludePath>
     <CodeAnalysisRuleSet>RULES.ruleset</CodeAnalysisRuleSet>
     <IncludePath>$(IncludePath)</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(VULKAN_SDK)\Bin;$(VULKAN_SDK)\lib;D:\source\cpp\My imgui Project\external\renderdoc\x64\Development</LibraryPath>
@@ -327,7 +327,6 @@
     <ClCompile Include="App.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
-    <ClCompile Include="App_windows.cpp" />
     <ClCompile Include="Commandregistry.cpp" />
     <ClCompile Include="Console.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
@@ -1129,21 +1128,16 @@
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
     </ClCompile>
-    <ClCompile Include="external\stb\stb_vorbis.c">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
-      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
-    </ClCompile>
     <ClCompile Include="FontManager.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
     <ClCompile Include="Fontscale.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
+    <ClCompile Include="Gifanimation.cpp" />
     <ClCompile Include="Image.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Imageviewerfactory.cpp" />
     <ClCompile Include="Imageviewerwindow.cpp" />
@@ -1334,32 +1328,19 @@
     <ClInclude Include="external\plutovg\source\plutovg-ft-stroker.h" />
     <ClInclude Include="external\plutovg\source\plutovg-ft-types.h" />
     <ClInclude Include="external\plutovg\source\plutovg-private.h" />
-    <ClInclude Include="external\plutovg\source\plutovg-stb-image-write.h" />
-    <ClInclude Include="external\plutovg\source\plutovg-stb-image.h" />
-    <ClInclude Include="external\plutovg\source\plutovg-stb-truetype.h" />
+    <ClInclude Include="external\plutovg\source\plutovg-stb-image-write.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-stb-image.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="external\plutovg\source\plutovg-stb-truetype.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClInclude>
     <ClInclude Include="external\plutovg\source\plutovg-utils.h" />
-    <ClInclude Include="external\stb\stb_connected_components.h" />
-    <ClInclude Include="external\stb\stb_c_lexer.h" />
-    <ClInclude Include="external\stb\stb_divide.h" />
-    <ClInclude Include="external\stb\stb_ds.h" />
-    <ClInclude Include="external\stb\stb_dxt.h" />
-    <ClInclude Include="external\stb\stb_easy_font.h" />
-    <ClInclude Include="external\stb\stb_herringbone_wang_tile.h" />
-    <ClInclude Include="external\stb\stb_hexwave.h" />
-    <ClInclude Include="external\stb\stb_image.h" />
-    <ClInclude Include="external\stb\stb_image_resize2.h" />
-    <ClInclude Include="external\stb\stb_image_write.h" />
-    <ClInclude Include="external\stb\stb_include.h" />
-    <ClInclude Include="external\stb\stb_leakcheck.h" />
-    <ClInclude Include="external\stb\stb_perlin.h" />
-    <ClInclude Include="external\stb\stb_rect_pack.h" />
-    <ClInclude Include="external\stb\stb_sprintf.h" />
-    <ClInclude Include="external\stb\stb_textedit.h" />
-    <ClInclude Include="external\stb\stb_tilemap_editor.h" />
-    <ClInclude Include="external\stb\stb_truetype.h" />
-    <ClInclude Include="external\stb\stb_voxel_render.h" />
     <ClInclude Include="FontManager.hpp" />
     <ClInclude Include="Fontscale.hpp" />
+    <ClInclude Include="Gifanimation.hpp" />
     <ClInclude Include="Image.hpp" />
     <ClInclude Include="Imageviewerfactory.hpp" />
     <ClInclude Include="Imageviewerwindow.hpp" />

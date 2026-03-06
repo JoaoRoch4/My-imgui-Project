@@ -190,9 +190,6 @@
     <ClCompile Include="App.cpp">
       <Filter>Local\src</Filter>
     </ClCompile>
-    <ClCompile Include="external\stb\stb_vorbis.c">
-      <Filter>external\stb\src</Filter>
-    </ClCompile>
     <ClCompile Include="external\plutovg\source\plutovg-blend.c">
       <Filter>external\pluto\plutovg\src</Filter>
     </ClCompile>
@@ -454,9 +451,6 @@
     <ClCompile Include="external\implot3d\implot3d.cpp">
       <Filter>external\plot\implot3d\src</Filter>
     </ClCompile>
-    <ClCompile Include="App_windows.cpp">
-      <Filter>Local\src</Filter>
-    </ClCompile>
     <ClCompile Include="MyWindows.cpp">
       <Filter>Local\src</Filter>
     </ClCompile>
@@ -467,6 +461,7 @@
       <Filter>Local\src</Filter>
     </ClCompile>
     <ClCompile Include="Imageviewerfactory.cpp" />
+    <ClCompile Include="Gifanimation.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.hpp">
@@ -522,66 +517,6 @@
     </ClInclude>
     <ClInclude Include="external\implot\implot_internal.h">
       <Filter>external\plot\implot\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_c_lexer.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_connected_components.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_divide.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_ds.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_dxt.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_easy_font.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_herringbone_wang_tile.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_hexwave.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_image.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_image_resize2.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_image_write.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_include.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_leakcheck.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_perlin.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_rect_pack.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_sprintf.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_textedit.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_tilemap_editor.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_truetype.h">
-      <Filter>external\stb\inc</Filter>
-    </ClInclude>
-    <ClInclude Include="external\stb\stb_voxel_render.h">
-      <Filter>external\stb\inc</Filter>
     </ClInclude>
     <ClInclude Include="external\plutovg\include\plutovg.h">
       <Filter>external\pluto\plutovg\inc</Filter>
@@ -1027,10 +962,15 @@
       <Filter>Local\include</Filter>
     </ClInclude>
     <ClInclude Include="Imageviewerfactory.hpp" />
+    <ClInclude Include="Gifanimation.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="external\freetype\src\base\ftver.rc">
       <Filter>external\freetype\src\base\inc</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="$(MSBuildThisFileDirectory)..\..\natvis\wil.natvis" />
+    <Natvis Include="$(MSBuildThisFileDirectory)..\..\natvis\wil.natstepfilter" />
   </ItemGroup>
 </Project>

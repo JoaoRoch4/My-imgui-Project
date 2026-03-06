@@ -12,7 +12,7 @@
 #define IMGUI 1
 #define IMPLOT 1
 #define IMPLOT3D 0
-#define PLUTO_SVG 1
+#define PLUTO_SVG 0
 #define STB 1
 #define IMGUI_ENABLE_TEST_ENGINE 0
 #define FREETYPE 1
@@ -444,8 +444,6 @@
 
 #if STB
 
-	#include "stb_include.h"
-	#include "stb_image.h"
 
 #endif // STB
 

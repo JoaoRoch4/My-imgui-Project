@@ -1,132 +1,109 @@
 #pragma once
 #include "pch.hpp"
 #include "Image.hpp"
+#include "GifAnimation.hpp"
 
 /**
  * @file ImageViewerWindow.hpp
- * @brief Uma janela ImGui independente que exibe uma única imagem Vulkan.
+ * @brief Janela ImGui que exibe imagem estática ou GIF animado.
  *
- * PADRÃO FACTORY
- * ---------------
- * ImageViewerWindow não é construído diretamente pelo código de UI.
- * ImageViewerFactory é o único ponto de criação — ele atribui o ID único
- * que evita conflitos de janelas no ImGui e mantém o ciclo de vida via
- * std::unique_ptr.
+ * FUNCIONALIDADES
+ * ----------------
+ *  - Zoom: Ctrl+Scroll, botões Fit / 1:1 / + / -
+ *  - Pan:  arrastar com botão esquerdo move a imagem
+ *  - Scroll: roda do rato (vertical), Shift+roda (horizontal)
+ *  - Controlos de animação para GIFs (Play/Pause/Reset/frame N/M)
+ *  - Botão [+ Nova imagem] na toolbar — abre nova janela via callback
  *
- * ZOOM
- * -----
- * Ctrl+Scroll dentro da janela altera m_zoom [ZOOM_MIN, ZOOM_MAX].
- * O botão "Fit" recalcula o zoom para caber a imagem na área disponível.
- * O botão "1:1" restaura zoom = 1.0 (pixel perfeito).
+ * PAN
+ * ----
+ * O child usa ImGuiWindowFlags_NoScrollWithMouse para desactivar o
+ * scroll automático do ImGui. O drag é detectado com IsMouseDragging
+ * e o scroll ajustado via SetScrollX/Y manualmente.
+ * Cursor muda para Hand em hover e ResizeAll durante o drag.
  *
- * RESIZE
- * -------
- * A janela ImGui é livremente redimensionável pelo usuário.
- * ImGuiWindowFlags_None deixa o ImGui gerenciar o tamanho; a imagem
- * é desenhada com o tamanho resultante de aplicar m_zoom sobre as
- * dimensões originais da imagem.
- *
- * CICLO DE VIDA
- * --------------
- * m_open começa true. Quando o usuário clica no X da janela ImGui,
- * m_open é zerado. ImageViewerFactory::RemoveClosed() recolhe e
- * destrói janelas com m_open == false a cada frame.
+ * BOTÃO [+ Nova imagem]
+ * ----------------------
+ * ImageViewerWindow não conhece o factory — usa std::function<void()>
+ * passada no construtor. O factory passa [this]{ OpenFileDialog(); }.
+ * Se a callback estiver vazia, o botão não é exibido.
  */
 class ImageViewerWindow {
 public:
 
-    // =========================================================================
-    // Constantes de zoom
-    // =========================================================================
-
     static constexpr float ZOOM_MIN  = 0.05f; ///< Zoom mínimo (5%)
     static constexpr float ZOOM_MAX  = 16.0f; ///< Zoom máximo (1600%)
-    static constexpr float ZOOM_STEP = 0.1f;  ///< Incremento por tick de scroll
-
-    // =========================================================================
-    // Construtor / Destrutor
-    // =========================================================================
+    static constexpr float ZOOM_STEP = 0.1f;  ///< Passo por tick de scroll
 
     /**
-     * @brief Constrói a janela, carrega a imagem e define o título.
+     * @brief Constrói a janela e carrega o conteúdo.
      *
-     * @param id        ID único inteiro — integrado ao título via "##id" para
-     *                  evitar colisões de IDs no ImGui.
-     * @param filepath  Caminho wide do arquivo de imagem (PNG, JPG, BMP, TGA).
+     * @param id            ID único do factory (sufixo ImGui "##id").
+     * @param filepath      Caminho wide do ficheiro (PNG, JPG, BMP, TGA, GIF).
+     * @param open_callback Invocada ao clicar [+ Nova imagem]; pode ser vazia.
      */
-    ImageViewerWindow(int id, std::wstring filepath);
+    ImageViewerWindow(int id, std::wstring filepath,
+                      std::function<void()> open_callback = {});
 
     ~ImageViewerWindow() = default;
 
-    // Não copiável — Image contém handles Vulkan de posse única
     ImageViewerWindow(const ImageViewerWindow&)            = delete;
     ImageViewerWindow& operator=(const ImageViewerWindow&) = delete;
+    ImageViewerWindow(ImageViewerWindow&&)                 = default;
+    ImageViewerWindow& operator=(ImageViewerWindow&&)      = default;
 
-    // Movível
-    ImageViewerWindow(ImageViewerWindow&&)            = default;
-    ImageViewerWindow& operator=(ImageViewerWindow&&) = default;
-
-    // =========================================================================
-    // API pública
-    // =========================================================================
-
-    /**
-     * @brief Desenha a janela ImGui. Chame uma vez por frame.
-     *
-     * Retorna sem desenhar nada se a imagem não foi carregada com sucesso.
-     * Após o usuário clicar no X, m_open é false — verifique IsOpen().
-     */
+    /** @brief Desenha a janela. Chame uma vez por frame. */
     void Draw();
 
-    /** @brief true enquanto o usuário não fechar a janela com o X. */
-    [[nodiscard]] bool IsOpen()    const noexcept { return m_open;    }
+    /** @brief true enquanto a janela não for fechada. */
+    [[nodiscard]] bool IsOpen()   const noexcept { return m_open; }
 
-    /** @brief true se a imagem Vulkan foi carregada com sucesso. */
-    [[nodiscard]] bool IsLoaded()  const noexcept { return m_image.IsLoaded(); }
+    /** @brief true se a imagem/GIF foi carregado com sucesso. */
+    [[nodiscard]] bool IsLoaded() const noexcept;
 
-    /** @brief Caminho completo do arquivo aberto. */
+    /** @brief true se o ficheiro é um GIF. */
+    [[nodiscard]] bool IsGif()    const noexcept { return m_is_gif; }
+
+    /** @brief Caminho completo do ficheiro. */
     [[nodiscard]] const std::wstring& GetFilepath() const noexcept { return m_filepath; }
 
-    /** @brief ID único desta janela (atribuído pelo factory). */
-    [[nodiscard]] int  GetID()     const noexcept { return m_id;      }
+    /** @brief ID único desta janela. */
+    [[nodiscard]] int GetID() const noexcept { return m_id; }
 
 private:
 
-    // =========================================================================
-    // Estado interno
-    // =========================================================================
+    int          m_id;           ///< ID único — sufixo ImGui "##N"
+    std::wstring m_filepath;     ///< Caminho completo do ficheiro
+    std::wstring m_title;        ///< "filename.ext##id" (wide)
+    std::string  m_title_utf8;   ///< "filename.ext##id" (UTF-8 para ImGui)
 
-    int          m_id;       ///< ID único para título ImGui "##N"
-    std::wstring m_filepath; ///< Caminho completo do arquivo
-    std::wstring m_title;    ///< Título wide da janela (filename + " ##id")
-    std::string  m_title_utf8; ///< Título em UTF-8 para ImGui::Begin
-    Image        m_image;    ///< Imagem Vulkan — posse exclusiva desta janela
-    bool         m_open;     ///< false quando o X foi clicado
-    float        m_zoom;     ///< Fator de zoom atual [ZOOM_MIN, ZOOM_MAX]
+    Image        m_image;        ///< Textura estática (se !m_is_gif)
+    GifAnimation m_gif;          ///< Animação GIF     (se  m_is_gif)
+    bool         m_is_gif;       ///< true se extensão == .gif
 
-    // =========================================================================
-    // Métodos auxiliares de renderização
-    // =========================================================================
+    bool  m_open; ///< false quando X clicado
+    float m_zoom; ///< Zoom actual [ZOOM_MIN, ZOOM_MAX]
 
-    /** @brief Desenha a toolbar interna (Fit, 1:1, zoom%, info). */
+    /// Callback para [+ Nova imagem] — invocada ao clicar o botão.
+    /// Passada pelo factory; pode ser vazia (botão não aparece).
+    std::function<void()> m_open_callback;
+
+    /** @brief Toolbar: Fit, 1:1, +, -, info, [+ Nova imagem], controlos GIF. */
     void DrawToolbar();
 
     /**
-     * @brief Desenha a imagem com scroll e zoom no child region.
-     * @param available  Tamanho disponível na janela após a toolbar.
+     * @brief Child scrollável com pan, zoom e tooltip de coordenadas.
+     * @param available  Área disponível após toolbar + separator.
      */
     void DrawImage(ImVec2 available);
 
-    /**
-     * @brief Recalcula m_zoom para a imagem caber na área disponível.
-     * @param available  Área disponível em pixels de tela.
-     */
+    /** @brief Recalcula m_zoom para a imagem caber na área. */
     void FitToWindow(ImVec2 available);
 
-    /**
-     * @brief Converte wchar_t* para UTF-8 — fronteira com ImGui.
-     * @param wstr  String wide terminada em nulo.
-     * @return      std::string UTF-8.
-     */
+    [[nodiscard]] int         GetContentWidth()     const noexcept;
+    [[nodiscard]] int         GetContentHeight()    const noexcept;
+    [[nodiscard]] ImTextureID GetCurrentTextureID() const noexcept;
+
     [[nodiscard]] static std::string WideToUtf8(const wchar_t* wstr);
+    [[nodiscard]] static bool HasGifExtension(const std::wstring& filepath) noexcept;
 };

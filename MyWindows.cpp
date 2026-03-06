@@ -28,9 +28,7 @@ g_Settings(nullptr),
 m_image_viewer_factory(nullptr) {}
 
 MyWindows::~MyWindows() = default;
-MyResult MyWindows::CreateWindows() {
-
-	m_App = Memory::Get()->GetApp();
+void	 MyWindows::Init() {m_App = Memory::Get()->GetApp();
 	if (!m_App) MR_BOTH_ERR_END_LOC("MyWindows: App instance not found in Memory.");
 	g_Vulkan = Memory::Get()->GetVulkan();
 	if (!g_Vulkan) MR_BOTH_ERR_END_LOC("MyWindows: VulkanContext instance not found in Memory.");
@@ -48,7 +46,10 @@ MyResult MyWindows::CreateWindows() {
 	if (!g_Settings) MR_BOTH_ERR_END_LOC("MyWindows: AppSettings instance not found in Memory.");
 	m_image_viewer_factory = Memory::Get()->GetImageViewerFactory();
 	if (!m_image_viewer_factory)
-		MR_BOTH_ERR_END_LOC("MyWindows: m_image_viewer_factory instance not found in Memory.");
+		MR_BOTH_ERR_END_LOC("MyWindows: m_image_viewer_factory instance not found in Memory.");}
+MyResult MyWindows::CreateWindows() {
+
+	
 	// Sonda o hotkey do console externo Win32 (F1) fora do contexto ImGui.
 	WindowsConsole::poll_hotkey();
 

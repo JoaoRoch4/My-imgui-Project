@@ -207,6 +207,7 @@ MyResult App::AllocGlobals() {
 
     g_Settings = Memory::Get()->GetAppSettings();
 	g_MyWindows = Memory::Get()->GetMyWindows();
+	g_MyWindows->Init();
 
     // ---- 2. Validação ---------------------------------------------------
     if(!g_Vulkan)
@@ -720,7 +721,7 @@ MyResult App::MainLoop() {
  */
 MyResult App::Windows()
 {
-
+    
 	g_MyWindows->CreateWindows(); // cria as janelas (se já existirem, apenas chama Draw())
     return MR_OK;
 }

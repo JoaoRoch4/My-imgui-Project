@@ -37,15 +37,17 @@
 #include "pch.hpp"       // SEMPRE PRIMEIRO com MSVC /Yu — PCH injeta antes de tudo
 
 // stb_image DEVE vir depois do pch para que o define seja visível ao compilador
-#define STB_IMAGE_IMPLEMENTATION // emite a implementação das funções stbi_*
-#include "stb_image.h"           // stbi_load, stbi_load_from_memory, stbi_image_free
+
 
 #include "Image.hpp"
 #include "App.hpp"   // g_App → g_Vulkan (device, queue, window data)
 #include "VulkanContext_Wrapper.hpp"
 #include "ImGuiContext_Wrapper.hpp"
 #include "Memory.hpp"
-
+#define STB_IMAGE_IMPLEMENTATION 
+#define STBI_WINDOWS_UTF8
+#include <stb_image.h>
+ // stbi_load, stbi_load_from_memory, stbi_image_free
 // ============================================================================
 // Construtor
 // ============================================================================
@@ -171,6 +173,20 @@ bool Image::Load(const void* data, size_t data_size) {
     stbi_image_free(pixels);
     return ok;
 }
+
+bool Image::LoadFromMemory(const unsigned char* pixels, int width, int height) { 
+if(!pixels || width <= 0 || height <= 0)
+        return false;
+
+    g_App = Memory::Get()->GetApp(); // garante que g_App está actualizado
+
+    if(m_Loaded) Unload(); // liberta recursos anteriores se existirem
+
+    m_Channels = 4; // LoadFromMemory só aceita RGBA
+
+    // const_cast seguro: UploadToGPU não modifica o buffer,
+    // apenas faz memcpy para o UploadBuffer HOST_VISIBLE
+    return UploadToGPU(const_cast<unsigned char*>(pixels), width, height); }
 
 // ============================================================================
 // Unload
