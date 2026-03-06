@@ -1009,6 +1009,7 @@
     <ClInclude Include="MyWindows.hpp">
       <Filter>Local\include</Filter>
     </ClInclude>
+    <ClInclude Include="emojis.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="external\freetype\src\base\ftver.rc">

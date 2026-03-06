@@ -219,9 +219,7 @@ MyResult Memory::AllocAll(SDL_Window *window) {
 		if (!MR_IS_OK(AllocApp())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocApp");
 	}
 
-	if (!MR_IS_OK(AllocMyWindows()))
-		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocMyWindows");
-
+	
 	// 4. ImGui: CreateContext + ImplSDL3 + ImplVulkan
 	//    ImplVulkan_Init lê ImageCount do swapchain criado em AllocVulkan()
 	if (!MR_IS_OK(AllocImGui())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocImGui");
@@ -243,6 +241,10 @@ MyResult Memory::AllocAll(SDL_Window *window) {
 
 	// 9. MenuBar: registra itens de menu; requer contexto ImGui ativo
 	if (!MR_IS_OK(AllocMenuBar())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocMenuBar");
+
+	if (!MR_IS_OK(AllocMyWindows()))
+		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocMyWindows");
+
 
 	return MyResult::ok;
 }

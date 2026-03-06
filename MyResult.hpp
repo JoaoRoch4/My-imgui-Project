@@ -238,9 +238,9 @@ private:
 // --------------------------------------------------------------------
 
 #define MR_BOTH_ERR(var, msg)      ( MR_CLS_ERR(var, msg),      MR_MSGBOX_ERR(var, msg)      )
-#define MR_BOTH_ERR_END(var, msg)  ( MR_CLS_ERR_END(var, msg),  MR_MSGBOX_ERR_END(var, msg)  )
+#define MR_BOTH_ERR_END(var, msg)  ( MR_CLS_ERR(var, msg),  MR_MSGBOX_ERR_END(var, msg)  )
 #define MR_BOTH_WARN(var, msg)     ( MR_CLS_WARN(var, msg),     MR_MSGBOX_WARN(var, msg)     )
-#define MR_BOTH_WARN_END(var, msg) ( MR_CLS_WARN_END(var, msg), MR_MSGBOX_WARN_END(var, msg) )
+#define MR_BOTH_WARN_END(var, msg) ( MR_CLS_WARN(var, msg), MR_MSGBOX_WARN_END(var, msg) )
 #define MR_BOTH_OK(msg)            ( MR_CLS_NORMAL(msg),        MR_MSGBOX_OK(msg)            )
 
 // --------------------------------------------------------------------
@@ -248,9 +248,9 @@ private:
 // --------------------------------------------------------------------
 
 #define MR_BOTH_ERR_LOC(msg)      ( MR_CLS_ERR_LOC(msg),      MR_MSGBOX_ERR_LOC(msg)      )
-#define MR_BOTH_ERR_END_LOC(msg)  ( MR_CLS_ERR_END_LOC(msg),  MR_MSGBOX_ERR_END_LOC(msg)  )
+#define MR_BOTH_ERR_END_LOC(msg)  ( MR_CLS_ERR_LOC(msg),  MR_MSGBOX_ERR_END_LOC(msg)  )
 #define MR_BOTH_WARN_LOC(msg)     ( MR_CLS_WARN_LOC(msg),     MR_MSGBOX_WARN_LOC(msg)     )
-#define MR_BOTH_WARN_END_LOC(msg) ( MR_CLS_WARN_END_LOC(msg), MR_MSGBOX_WARN_END_LOC(msg) )
+#define MR_BOTH_WARN_END_LOC(msg) ( MR_CLS_WARN_LOC(msg), MR_MSGBOX_WARN_END_LOC(msg) )
 #define MR_BOTH_OK_LOC(msg)       ( MR_CLS_NORMAL_LOC(msg),   MR_MSGBOX_OK_LOC(msg)       )
 
 // ====================================================================

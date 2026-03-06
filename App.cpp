@@ -36,10 +36,9 @@
 #include "SystemInfo.hpp"
 #include "MicaTheme.h"  // MicaTheme::ApplyMicaTheme — chamado em ApplyStyleToImGui()
 #include "FontScale.hpp" // FontScale::ProcessEvent, SetSize, ResetToDefault
-
-#include <implot3d.h>
-#include <implot3d_internal.h>
-#include <implot3d_demo.cpp>
+#include "MyWindows.hpp"
+#include "MyResult.hpp"
+#include "emojis.hpp"
 
 // =============================================================================
 // Definição do ponteiro global
@@ -87,6 +86,7 @@ App::App()
     , g_MenuBar(nullptr)                // alias — preenchido em AllocGlobals()
     , g_Settings(nullptr)               // alias — preenchido em AllocGlobals()
     , g_Window(nullptr)                 // preenchido em run() após SDL_CreateWindow
+    , g_MyWindows(nullptr)                // alias — preenchido em AllocGlobals()
     , m_ConfigFile("settings.json")     // caminho fixo do arquivo de configuração
 {
 }
@@ -205,6 +205,7 @@ MyResult App::AllocGlobals() {
     g_MenuBar  = Memory::Get()->GetMenuBar();
 
     g_Settings = Memory::Get()->GetAppSettings();
+	g_MyWindows = Memory::Get()->GetMyWindows();
 
     // ---- 2. Validação ---------------------------------------------------
     if(!g_Vulkan)
@@ -219,6 +220,8 @@ MyResult App::AllocGlobals() {
         return MR_MSGBOX_ERR_END_LOC("g_Settings nulo após AllocAll.");
     if(!g_MenuBar)
         return MR_MSGBOX_ERR_END_LOC("g_MenuBar nulo após AllocAll.");
+
+        if (!g_MyWindows) return MR_MSGBOX_ERR_END_LOC("g_MyWindows nulo após AllocAll.");
 
     // ---- 3. Carrega configuração do disco --------------------------------
     // LoadConfig() chama internamente:
@@ -658,6 +661,8 @@ MyResult App::RegisterCommands() {
     g_Console->RegisterCommand(L"Abort",  L"Aborta o programa.",           []() { std::abort(); });
     g_Console->RegisterCommand(L"System Pause", L"Pausa via Windows.",     []() { std::system("pause"); });
     g_Console->RegisterCommand(L"Cpp Pause",    L"Pausa via C++.",          []() { std::cin.get(); });
+    g_Console->RegisterCommand(L"Test Emojis",    L"Testa emojis no console.",          [this]() { g_Console->AddLog(emojis); });
+
 
     return MyResult::ok;
 }
@@ -747,212 +752,25 @@ MyResult App::MainLoop() {
  * Qualquer alteração que deva ser persistida chama SaveConfig() imediatamente
  * no handler do widget — garante que nem um ALT+F4 perde o estado.
  */
-MyResult App::Windows() {
-     WindowsConsole::poll_hotkey();
+/**
+ * @brief Renderiza todas as janelas ImGui do frame atual.
+ *
+ * REGRA FUNDAMENTAL DO IMGUI:
+ *   - p_open (segundo parâmetro de Begin) só desenha o X e zera o bool.
+ *   - Quem decide se a janela EXISTE é o `if` externo que guarda o Begin/End.
+ *   - Se Begin() for chamado, End() DEVE ser chamado no mesmo frame,
+ *     independente de qualquer condição interna.
+ *
+ * ORDEM DO FRAME:
+ *   1. NewFrame()          — inicia o frame ImGui
+ *   2. MenuBar::Draw()     — barra de menu (modifica flags via g_Settings)
+ *   3. Janelas condicionais (if + Begin/End)
+ *   4. Retorna MR_OK       — Render() é chamado pelo MainLoop
+ */
+MyResult App::Windows()
+{
 
-    g_ImGui->NewFrame();
-
-    g_MenuBar->Draw();
-
-    if(g_ShowDemo)
-        ImGui::ShowDemoWindow(&g_ShowDemo);
-
-    
-        ImGui::Begin("Window Controls", &g_Settings->window.show_window_controls);
-
-        // ---- Botão fechar ------------------------------------------------
-        const float btn_w   = 60.0f;
-        const float padding = ImGui::GetStyle().WindowPadding.x;
-        ImGui::SetCursorPosX(ImGui::GetWindowWidth() - btn_w - padding);
-        if(ImGui::Button("❌", ImVec2(btn_w, 0))) g_Done = true;
-        if(ImGui::IsItemHovered()) ImGui::SetTooltip("Fechar o programa");
-
-        ImGui::SameLine();
-        ImGui::Text("Global Alpha Blending");
-
-        // ---- Opacidade da janela (não persistida) -----------------------
-        if(ImGui::SliderFloat("Window Opacity", &g_window_opacity, 0.1f, 1.0f))
-            SDL_SetWindowOpacity(g_Window, g_window_opacity);
-        if(ImGui::Button("Reset to Opaque")) {
-            g_window_opacity = 1.0f;
-            SDL_SetWindowOpacity(g_Window, 1.0f);
-        }
-
-        ImGui::Separator();
-
-        // ---- Cor de fundo — persistida ----------------------------------
-        if(ImGui::ColorEdit3("Background Color", g_color_ptr))
-            SaveConfig();
-
-        // ---- Tema Mica — toggle persistido ------------------------------
-        if(ImGui::Checkbox("Windows 11 Mica Theme", &g_Settings->use_mica_theme)) {
-            ApplyStyleToImGui(); // reaplicação imediata (com ou sem Mica)
-            SaveConfig();
-        }
-
-        ImGui::Separator();
-
-        // ---- Fonte — font_scale_main (multiplicador) -------------------
-        if(ImGui::SliderFloat("Font Scale",
-            &g_Settings->font.font_scale_main, 0.5f, 3.0f, "%.2f")) {
-            ImGui::GetStyle().FontScaleMain = g_Settings->font.font_scale_main;
-            SaveConfig();
-        }
-
-        // ---- Fonte — font_size_base (pixels absolutos) -----------------
-        if(ImGui::SliderFloat("Font Size Base",
-            &g_Settings->font.font_size_base,
-            FontScale::FONT_SIZE_MIN, FontScale::FONT_SIZE_MAX, "%.1f px")) {
-            FontScale::SetSize(g_Settings->font.font_size_base);
-            SaveConfig();
-        }
-
-        if(ImGui::Button("Reset Font")) {
-            FontScale::ResetToDefault();
-            g_Settings->font.font_scale_main = 1.0f;
-            ImGui::GetStyle().FontScaleMain  = 1.0f;
-            SaveConfig();
-        }
-
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-            1000.0f / g_io->Framerate, g_io->Framerate);
-
-        ImGui::Separator();
-        WindowsConsole::render_imgui_button();
-
-        // ---- Visibilidade do console ------------------------------------
-        if(ImGui::Checkbox("Show ImGui Console", &g_Settings->window.show_console))
-            SaveConfig();
-
-        // ---- Flags de janelas — todas persistidas -----------------------
-        if(ImGui::Checkbox("Demo Window",  &g_ShowDemo))    SaveConfig();
-        if(ImGui::Checkbox("Style Editor", &g_ShowStyleEd)) SaveConfig();
-
-        if(ImGui::Button("Log Test msg"))
-            g_Console->AddLog(L"Botao pressionado no frame %d \U0001F680",
-                ImGui::GetFrameCount());
-
-        if(g_Logo.IsLoaded()) {
-            ImGui::Separator();
-            g_Logo.DrawCentered(180.0f, 60.0f);
-            if(ImGui::IsItemHovered())
-                ImGui::SetTooltip("Logo %dx%d", g_Logo.GetWidth(), g_Logo.GetHeight());
-        }
-
-        if(g_IconSettings.IsLoaded()) {
-            if(g_IconSettings.DrawButton("##btn_settings", {16.0f, 16.0f}))
-                g_ShowStyleEd = !g_ShowStyleEd;
-            ImGui::SameLine();
-            ImGui::Text("Configuracoes");
-        }
-
-        // ---- ImPlot3D demos — todos persistidos -------------------------
-        if(ImGui::Checkbox("grafico",                     &g_grafico))                    SaveConfig();
-        if(ImGui::Checkbox("Viewports",                   &bViewportDocking))             SaveConfig();
-        if(ImGui::Checkbox("ImPlot3D RealtimePlots",      &bImPlot3d_DemoRealtimePlots))  SaveConfig();
-        if(ImGui::Checkbox("ImPlot3D QuadPlots",          &bImPlot3d_DemoQuadPlots))      SaveConfig();
-        if(ImGui::Checkbox("ImPlot3D TickLabels",         &bImPlot3d_DemoTickLabels))     SaveConfig();
-
-        ImGui::End();
-    
-
-    // ---- Console ImGui interno ------------------------------------------
-    if(g_Settings->window.show_console) {
-        g_Console->Draw(L"Debug Console", &g_Settings->window.show_console);
-        if(!g_Settings->window.show_console) SaveConfig(); // persiste ao fechar
-    }
-
-    // ---- Style Editor ---------------------------------------------------
-    if(g_ShowStyleEd)
-        g_Style->Show(nullptr, &g_ShowStyleEd);
-
-    // Detecta transição open→closed para salvar uma última vez
-    {
-        static bool s_style_was_open = false;
-        if(s_style_was_open && !g_ShowStyleEd) SaveConfig(); // fechou — salva
-        s_style_was_open = g_ShowStyleEd;
-    }
-
-    if(bViewportDocking) bViewportDocking = !bViewportDocking;
-
-    // ---- Gráfico de exemplo ---------------------------------------------
-    if(g_grafico) {
-        ImGui::Begin("Grafico de Exemplo", &g_grafico);
-        if(ImPlot::BeginPlot("Gráfico de Exemplo")) {
-            ImPlot::SetupAxes("Tempo", "Valor");
-            static float x_data[10] = {0,1,2,3,4,5,6,7,8,9};
-            static float y_data[10] = {1,3,2,4,5,3,6,5,7,8};
-            ImPlot::PlotLine("Sinal A", x_data, y_data, 10);
-            ImPlot::PlotLineG("Cosseno",
-                [](int idx, void*) { return ImPlotPoint(idx * 0.1f, cosf(idx * 0.1f)); },
-                nullptr, 100);
-            ImPlot::EndPlot();
-            ImGui::End();
-        }
-    }
-
-    // ---- ImPlot3D demos -------------------------------------------------
-    if(bImPlot3d_DemoRealtimePlots) {
-        ImGui::Begin("ImPlot3D Demo RealtimePlots", &bImPlot3d_DemoRealtimePlots);
-        ImPlot3D::CreateContext(); ImPlot3D::DemoRealtimePlots(); ImPlot3D::DestroyContext();
-        ImGui::End();
-    }
-    if(bImPlot3d_DemoQuadPlots) {
-        ImGui::Begin("ImPlot3D Demo QuadPlots", &bImPlot3d_DemoQuadPlots);
-        ImPlot3D::CreateContext(); ImPlot3D::DemoQuadPlots(); ImPlot3D::DestroyContext();
-        ImGui::End();
-    }
-    if(bImPlot3d_DemoTickLabels) {
-        ImGui::Begin("ImPlot3D Demo TickLabels", &bImPlot3d_DemoTickLabels);
-        ImPlot3D::CreateContext(); ImPlot3D::DemoTickLabels(); ImPlot3D::DestroyContext();
-        ImGui::End();
-    }
-
-    g_Console->RegisterCommand(
-    L"theme",
-    L"Muda o tema da aplicação. Uso: theme [dark|light|clear]",
-    [this](std::vector<std::wstring> args)
-    {
-        // args vazio → usuário digitou apenas "theme" sem subcomando
-        if (args.empty())
-        {
-            g_Console->AddLog(L"[yellow]Uso:[/] theme [dark|light|clear]");
-            return; // nada mais a fazer sem argumento
-        }
-
-        // Converte o primeiro argumento para uppercase para comparação
-        // case-insensitive — ex.: L"Dark" e L"DARK" são equivalentes.
-        std::wstring sub = args[0]; // cópia do primeiro argumento
-        std::transform(
-            sub.begin(), sub.end(), // intervalo de entrada
-            sub.begin(),            // intervalo de saída (in-place)
-            [](const wchar_t c) {
-                return static_cast<wchar_t>(towupper(c)); // uppercase largo
-            });
-
-        if (sub == L"DARK")
-        {
-            ImGui::StyleColorsDark();                        // aplica tema escuro do ImGui
-            g_Console->AddLog(L"[cyan]Tema:[/] dark aplicado.");
-        }
-        else if (sub == L"LIGHT")
-        {
-            ImGui::StyleColorsLight();                       // aplica tema claro do ImGui
-            g_Console->AddLog(L"[cyan]Tema:[/] light aplicado.");
-        }
-        else if (sub == L"CLEAR" || sub == L"CLASSIC")
-        {
-            ImGui::StyleColorsClassic();                     // aplica tema clássico do ImGui
-            g_Console->AddLog(L"[cyan]Tema:[/] classic aplicado.");
-        }
-        else
-        {
-            // argumento não reconhecido — informa o usuário sem encerrar
-            g_Console->AddLog(L"[error]Subcomando desconhecido:[/] '%ls'", args[0].c_str());
-            g_Console->AddLog(L"[yellow]Uso:[/] theme [dark|light|clear]");
-        }
-    });
-
+	g_MyWindows->CreateWindows(); // cria as janelas (se já existirem, apenas chama Draw())
     return MR_OK;
 }
 

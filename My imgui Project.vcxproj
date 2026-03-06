@@ -1186,6 +1186,7 @@
     <ClInclude Include="Appsettings.hpp" />
     <ClInclude Include="Console.hpp" />
     <ClInclude Include="EmojiDebugHelper.h" />
+    <ClInclude Include="emojis.hpp" />
     <ClInclude Include="external\dlg\include\dlg\dlg.h" />
     <ClInclude Include="external\dlg\include\dlg\dlg.hpp" />
     <ClInclude Include="external\dlg\include\dlg\output.h" />

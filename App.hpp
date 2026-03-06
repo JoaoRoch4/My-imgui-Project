@@ -65,6 +65,8 @@ struct ScrollingBuffer {
 class App {
 public:
 
+    friend class MyWindows; ///< Permite que MyWindows acesse g_App->g_ShowDemo, etc. para controle
+							///< de janelas
     // =========================================================================
     // Construtor / Destrutor
     // =========================================================================
@@ -131,7 +133,7 @@ public:
     // POR QUE NÃO ACESSAR g_Settings->window.* DIRETAMENTE NO LOOP?
     // → Manter os nomes originais (g_Done, g_ShowDemo, etc.) evita alterar
     //   todo o código de Windows() e dos comandos do console que já os usam.
-
+  
     bool  g_Done;          ///< true = MainLoop encerra na próxima iteração (não persistido)
     bool  g_ShowDemo;      ///< Espelho de AppSettings::window.show_demo
     bool  g_ShowStyleEd;   ///< Espelho de AppSettings::window.show_style_editor
@@ -178,6 +180,8 @@ public:
     Image g_Logo;         ///< Logo principal da aplicação
     Image g_IconSettings; ///< Ícone de configurações
 
+    class MyWindows* g_MyWindows; ///< Gerenciador de janelas ImGui (Console, StyleEditor, etc.)
+
     // =========================================================================
     // Persistência
     // =========================================================================
@@ -199,15 +203,6 @@ public:
      * Se o arquivo não existir ou estiver corrompido, mantém os defaults.
      */
     void LoadConfig();
-
-private:
-
-    std::string m_ConfigFile; ///< Caminho do JSON de configuração ("settings.json")
-
-    // =========================================================================
-    // Helpers de sincronização de flags
-    // =========================================================================
-
     /**
      * @brief Copia AppSettings::window.* → membros públicos g_Show*, g_grafico, etc.
      *
@@ -247,6 +242,16 @@ private:
     MyResult RegisterCommands();
     MyResult MainLoop();
     MyResult GetDesktopResolution(int& horizontal, int& vertical);
+
+protected:
+
+    std::string m_ConfigFile; ///< Caminho do JSON de configuração ("settings.json")
+
+    // =========================================================================
+    // Helpers de sincronização de flags
+    // =========================================================================
+
+    
 };
 
 // ============================================================================
