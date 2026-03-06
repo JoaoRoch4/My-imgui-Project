@@ -102,6 +102,7 @@ private:
     StyleSettings m_Settings;
     ImGuiStyle m_RefSavedStyle;
     bool m_Init = true;
+        class App* g_App;
 
     // Helper functions
     void ApplySettings();

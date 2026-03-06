@@ -14,6 +14,7 @@ class Console;
 class StyleEditor;
 class MenuBar;
 class WindowsConsole;
+class ImageViewerFactory;
 
 /**
  * @brief Singleton que centraliza o ciclo de vida de todos os recursos da aplicação.
@@ -231,6 +232,8 @@ public:
 	MyResult AllocMenuBar();
 	MyResult DestroyMenuBar(); ///< Destrói a MenuBar.
 
+	MyResult AllocImageViewerFactory(); 
+	MyResult DestroyImageViewerFactory();
 	// -------------------------------------------------------------------------
 	// Getters — retornam nullptr se o recurso correspondente não foi alocado
 	// -------------------------------------------------------------------------
@@ -246,10 +249,12 @@ public:
 	StyleEditor*		  GetStyleEditor();	   ///< nullptr se não alocado
 	MenuBar*			  GetMenuBar();		   ///< nullptr se não alocado
 
+
+
 	/** @brief Retorna a SDL_Window* armazenada em AllocAll(). nullptr antes disso. */
 	SDL_Window*	 GetWindow() const;
 	AppSettings* GetAppSettings() const; ///< Atalho para GetApp()->GetAppSettings()
-
+ImageViewerFactory* GetImageViewerFactory() const;
 
 private:
 	// Construtor/destrutor privados — apenas Init()/Shutdown() criam/destroem
@@ -273,6 +278,7 @@ private:
 	std::unique_ptr<Console>			  console_instance;
 	std::unique_ptr<StyleEditor>		  style_editor_instance;
 	std::unique_ptr<MenuBar>			  menu_bar_instance;
+	std::unique_ptr<ImageViewerFactory> ImageViewerFactory_instance;
 
 	// -------------------------------------------------------------------------
 	// Flags de estado — true somente após o Alloc correspondente ter sucedido
@@ -289,6 +295,7 @@ private:
 	bool console_allocated;			///< true após AllocConsole()
 	bool style_editor_allocated;	///< true após AllocStyleEditor()
 	bool menu_bar_allocated;		///< true após AllocMenuBar()
+	bool ImageViewerFactory_allocated;
 
 	// -------------------------------------------------------------------------
 	// Janela e dados do monitor — detectados em AllocVulkan()

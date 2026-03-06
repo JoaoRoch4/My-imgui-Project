@@ -228,7 +228,8 @@ MyResult App::AllocGlobals() {
     // LoadConfig() chama internamente:
     //   SyncFlagsFromSettings() → g_ShowDemo, g_grafico, etc.
     //   ApplyStyleToImGui()     → ImGuiStyle (inclui Mica se habilitado)
-    LoadConfig();
+      if(g_Settings)
+        LoadConfig();
 
     // ---- 4. Imagens (falha não é fatal) ----------------------------------
     if(!MR_IS_OK(AllocImages()))

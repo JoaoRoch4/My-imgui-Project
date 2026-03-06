@@ -1,7 +1,6 @@
 #pragma once
 #include "pch.hpp"
 
-// Forward declarations — evita incluir headers pesados no .hpp
 class Console;
 class App;
 
@@ -9,34 +8,25 @@ class App;
  * @file CommandRegistry.hpp
  * @brief Classe responsável exclusivamente pelo registro de comandos do Console.
  *
- * RESPONSABILIDADE ÚNICA
- * -----------------------
- * App::RegisterCommands() delegava para este objeto, mantendo App.cpp enxuto.
- * Cada comando é registrado em um método privado separado, agrupado por tema:
+ * REGRA OBRIGATÓRIA — NOMES SEM ESPAÇOS
+ * ----------------------------------------
+ * ExecCommand divide a linha no PRIMEIRO espaço para obter a chave de despacho.
+ * Qualquer espaço num nome de comando impede o lookup correto.
  *
- *   RegisterLifecycle()   — EXIT, QUIT, BREAK, forceexit, Abort, pauses
- *   RegisterSystem()      — SPECS, VSYNC, NOVIEWPORTS, FONTRESET
- *   RegisterTheme()       — MICA, NOMICA, theme [dark|light|classic]
- *   RegisterDemo()        — implot, implot3d, Test Emojis
+ *   ERRADO : L"Test Emojis"   → chave = L"TEST"         → não encontrado
+ *   CORRETO: L"test_emojis"   → chave = L"TEST_EMOJIS"  → encontrado ✓
  *
- * USO EM App::RegisterCommands()
- * --------------------------------
- * @code
- *   MyResult App::RegisterCommands() {
- *       if(!g_Console || !g_Vulkan)
- *           return MR_MSGBOX_ERR_END_LOC("Console ou Vulkan nulos.");
+ * Nomes compostos DEVEM usar '_' como separador.
+ * O espaço é reservado para separar nome de argumentos:
  *
- *       CommandRegistry reg(this, g_Console);
- *       return reg.RegisterAll();
- *   }
- * @endcode
+ *   "system dir /b"  → chave = L"SYSTEM", args = { L"dir", L"/b" }
  *
- * ACESSO AO ESTADO DE App
- * ------------------------
- * CommandRegistry recebe um ponteiro não-possuidor para App.
- * Acessa apenas membros públicos de App (g_Done, g_Vulkan, g_Settings, etc.).
- * Não armazena o ponteiro além do escopo de RegisterAll() — seguro contra
- * use-after-free porque os lambdas capturam os ponteiros por valor.
+ * GRUPOS DE REGISTRO
+ * -------------------
+ *   RegisterLifecycle() — EXIT, QUIT, BREAK, forceexit, abort, system_pause, cpp_pause
+ *   RegisterSystem()    — SPECS, VSYNC, NOVIEWPORTS, FONTRESET, system [cmd]
+ *   RegisterTheme()     — MICA, NOMICA, theme [dark|light|classic]
+ *   RegisterDemo()      — implot, implot3d, test_emojis
  */
 class CommandRegistry {
 public:
@@ -44,7 +34,7 @@ public:
     /**
      * @brief Constrói o registry com referências não-possuidoras.
      *
-     * @param app      Instância de App em execução (membros públicos acessíveis).
+     * @param app      Instância de App em execução.
      * @param console  Console ImGui onde os comandos serão registrados.
      */
     CommandRegistry(App* app, Console* console) noexcept;
@@ -60,10 +50,7 @@ public:
     /**
      * @brief Registra todos os grupos de comandos no Console.
      *
-     * Chama internamente RegisterLifecycle(), RegisterSystem(),
-     * RegisterTheme() e RegisterDemo() nessa ordem.
-     *
-     * @return MyResult::ok sempre (falhas individuais são logadas no console).
+     * @return MyResult::ok sempre (falhas individuais logadas no console).
      */
     [[nodiscard]] class MyResult RegisterAll();
 
@@ -72,35 +59,15 @@ private:
     class App*     m_app;     ///< Ponteiro não-possuidor para a instância de App
     class Console* m_console; ///< Ponteiro não-possuidor para o Console ImGui
 
-    // =========================================================================
-    // Grupos de registro — um método por tema
-    // =========================================================================
-
-    /**
-     * @brief Registra comandos de ciclo de vida da aplicação.
-     *
-     * Comandos: EXIT, QUIT, BREAK, forceexit, Abort, "System Pause", "Cpp Pause"
-     */
+    /** @brief EXIT, QUIT, BREAK, forceexit, abort, system_pause, cpp_pause */
     void RegisterLifecycle();
 
-    /**
-     * @brief Registra comandos de sistema e hardware.
-     *
-     * Comandos: SPECS, VSYNC, NOVIEWPORTS, FONTRESET
-     */
+    /** @brief SPECS, VSYNC, NOVIEWPORTS, FONTRESET, system [cmd] */
     void RegisterSystem();
 
-    /**
-     * @brief Registra comandos de tema visual.
-     *
-     * Comandos: MICA, NOMICA, theme [dark|light|classic]
-     */
+    /** @brief MICA, NOMICA, theme [dark|light|classic] */
     void RegisterTheme();
 
-    /**
-     * @brief Registra comandos de demonstração e testes.
-     *
-     * Comandos: implot, implot3d, "Test Emojis"
-     */
+    /** @brief implot, implot3d, test_emojis */
     void RegisterDemo();
 };

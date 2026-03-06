@@ -32,9 +32,9 @@ public:
     void Draw();
 
 private:
-
+    class App* g_App;
     class AppSettings* g_Settings; ///< Configurações persistidas — dono: Memory singleton
-
+    class ImageViewerFactory* m_ImageViewerFactory;
 
     bool m_ShowAbout; ///< Flag interna: true = abrir popup "Sobre" neste frame
 

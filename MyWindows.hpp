@@ -14,8 +14,10 @@ public:
 	MyResult StyleEditor();
 	MyResult Graphs();
 	MyResult Graphs3D();
+	
 
 private:
+class ImageViewerFactory* m_image_viewer_factory;
 	class App*					m_App;
 	class VulkanContext*		g_Vulkan;
 	class ImGuiContext_Wrapper* g_ImGui;

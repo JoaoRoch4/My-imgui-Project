@@ -139,6 +139,7 @@
     <None Include="vcpkg.json" />
     <None Include="RULES.ruleset" />
     <None Include=".clang-format" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -462,6 +463,10 @@
     <ClCompile Include="Commandregistry.cpp">
       <Filter>Local\src</Filter>
     </ClCompile>
+    <ClCompile Include="Imageviewerwindow.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Imageviewerfactory.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.hpp">
@@ -1018,6 +1023,10 @@
     <ClInclude Include="Commandregistry.hpp">
       <Filter>Local\include</Filter>
     </ClInclude>
+    <ClInclude Include="Imageviewerwindow.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Imageviewerfactory.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="external\freetype\src\base\ftver.rc">

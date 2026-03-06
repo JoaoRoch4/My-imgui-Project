@@ -29,6 +29,7 @@
 #include "pch.hpp"
 #include "StyleEditor.hpp"
 #include "App.hpp" // g_App — necessário para delegar Save/Load ao App
+#include "Memory.hpp"
 
 // =============================================================================
 // StyleSettings::ApplyToStyle — sub-struct → ImGuiStyle
@@ -144,6 +145,8 @@ void StyleEditor::StyleSettings::LoadFromStyle(const ImGuiStyle& style) {
 StyleEditor::StyleEditor() {
     m_Settings.LoadFromStyle(ImGui::GetStyle()); // captura o estilo atual (pode já ter sido restaurado por App)
     m_RefSavedStyle = ImGui::GetStyle();          // cópia para o botão "Revert Ref"
+    	g_App = Memory::Get()->GetApp();
+
 }
 
 // =============================================================================

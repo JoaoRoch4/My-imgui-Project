@@ -100,6 +100,10 @@
 	#include <initguid.h> // Deve vir ANTES dos headers que usam o GUID
 	#include <devguid.h>
 	#include <Ntddvdeo.h>
+	#include <shobjidl.h>   // IFileOpenDialog, IShellItemArray, IShellItem
+#include <combaseapi.h> // CoInitializeEx, CoUninitialize
+#include <winrt/base.h> // Core C++/WinRT (com_ptr, check_hresult, cotaskmem_ptr)
+#include <wil/resource.h>
 
 	#pragma comment(lib, "winmm.lib")
 	#pragma comment(lib, "version.lib")
@@ -113,6 +117,7 @@
 	#pragma comment(lib, "oleaut32.lib")
 	#pragma comment(lib, "advapi32.lib")
 	#pragma comment(lib, "setupapi.lib")
+	#pragma comment(lib, "windowsapp")
 
 	// ============================================================================
 	// DirectX 11
@@ -122,13 +127,17 @@
 
 		#include <d3d11.h>
 		#pragma comment(lib, "d3d11.lib")
+		#pragma comment(lib, "DirectXTK.lib")
 
 	#endif //DIRECTX11
 
 	#if DIRECTX12
 
-		#include <d3d12.h>
+		#include <d3dx12\d3dx12.h>
 		#pragma comment(lib, "d3d12.lib")
+		#pragma comment(lib, "DirectXTK12.lib")
+		#pragma comment(lib, "DirectXTK12_Spectre.lib")
+
 
 	#endif //DIRECTX12
 

@@ -44,6 +44,7 @@
 #include "App.hpp"   // g_App → g_Vulkan (device, queue, window data)
 #include "VulkanContext_Wrapper.hpp"
 #include "ImGuiContext_Wrapper.hpp"
+#include "Memory.hpp"
 
 // ============================================================================
 // Construtor
@@ -60,6 +61,7 @@
  */
 Image::Image() {
     memset(this, 0, sizeof(*this)); // zera todos os campos, incluindo os Vulkan handles
+
 }
 
 // ============================================================================
@@ -112,6 +114,8 @@ Image& Image::operator=(Image&& o) noexcept {
  * @param path  Caminho para o arquivo (PNG, JPEG, BMP, TGA…).
  */
 bool Image::Load(const char* path) {
+	g_App = Memory::Get()->GetApp();
+
     if(m_Loaded) Unload(); // recarrega se já havia uma imagem
 
     m_Channels = 4; // força RGBA — formato mais fácil para o Vulkan
@@ -327,7 +331,7 @@ bool Image::DrawButton(const char* id, ImVec2 size) const {
 uint32_t Image::FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties mem_properties;
     vkGetPhysicalDeviceMemoryProperties(
-        g_App->g_Vulkan->GetPhysicalDevice(), // GPU física
+       Memory::Get()->GetApp()->g_Vulkan->GetPhysicalDevice(), // GPU física
         &mem_properties);
 
     for(uint32_t i = 0; i < mem_properties.memoryTypeCount; i++) {

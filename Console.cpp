@@ -31,6 +31,76 @@
 #include "Console.hpp"
 #include "Fontscale.hpp"
 
+/**
+ * @brief Inicializa o console e registra os quatro comandos internos.
+ *
+ * m_font_scale começa em 1.0f (100%) — escala neutra, sem magnificação.
+ */
+Console::Console() :
+HistoryPos(-1),
+AutoScroll(true),
+ScrollToBottom(false),
+m_font_scale(1.0f) // escala neutra — sem amplificação inicial
+{
+	ClearLog();
+	wmemset(InputBuf, L'\0', IM_COUNTOF(InputBuf));	  // zera buffer wide de entrada
+	memset(InputBufUtf8, '\0', sizeof(InputBufUtf8)); // zera buffer UTF-8 de staging
+
+	AddLog(L"Bem-vindo ao Console ImGui!");
+	AddLog(L"Digite '[yellow]HELP[/]' para ver a lista de comandos.");
+	AddLog(L"[gray]Dica: use A+ / A- na toolbar para ajustar o tamanho do texto.[/]");
+
+	// CLEAR — limpa o log
+	RegisterBuiltIn(L"CLEAR", [this]() { this->ClearLog(); });
+
+	// HELP — lista todos os comandos registrados
+	RegisterBuiltIn(L"HELP", [this]() {
+		AddLog(L"--- [yellow]Comandos Internos[/] ---");
+		for (const auto& cmd : BuiltInCommands)
+			AddLog(L"- [yellow]%ls[/]: %ls", cmd.name.data(), cmd.description.data());
+
+		AddLog(L"\n--- [cyan]Comandos do Sistema[/] ---");
+		for (const auto& pair : DispatchTable) {
+			const std::wstring& cmd_name = pair.first; // já em UPPERCASE
+
+			bool is_builtin = false;
+			for (const auto& b : BuiltInCommands)
+				if (b.name == cmd_name) {
+					is_builtin = true;
+					break;
+				}
+
+			if (!is_builtin) {
+				auto it = HelpDescriptions.find(cmd_name);
+				if (it != HelpDescriptions.end())
+					AddLog(L"- [cyan]%ls[/]: %ls", cmd_name.c_str(), it->second.c_str());
+				else AddLog(L"- [cyan]%ls[/]", cmd_name.c_str());
+			}
+		}
+	});
+
+	// HISTORY — mostra as últimas 10 entradas do histórico
+	RegisterBuiltIn(L"HISTORY", [this]() {
+		int first = History.Size - 10; // no máximo as últimas 10 entradas
+		for (int i = first > 0 ? first : 0; i < History.Size; i++)
+			AddLog(L"%3d: %ls\n", i, History[i]);
+	});
+
+	// EXIT — placeholder, deve ser sobrescrito pelo App
+	RegisterBuiltIn(
+		L"EXIT", [this]() { AddLog(L"[error]A lógica de saída deve ser sobrescrita no App![/]"); });
+}
+
+/**
+ * @brief Libera todas as wstrings alocadas no heap em Items e History.
+ */
+Console::~Console() {
+	ClearLog(); // libera cada Items[i] via ImGui::MemFree
+
+	for (int i = 0; i < History.Size; i++)
+		ImGui::MemFree(History[i]); // cada entrada foi alocada com Wcsdup
+}
+
 // ============================================================================
 // Helpers de arquivo — tokenização e font emoji
 // ============================================================================
@@ -520,75 +590,85 @@ void Console::RegisterCommand(const std::wstring& name, const std::wstring& desc
 // Construtor / Destrutor
 // ============================================================================
 
-/**
- * @brief Inicializa o console e registra os quatro comandos internos.
- *
- * m_font_scale começa em 1.0f (100%) — escala neutra, sem magnificação.
- */
-Console::Console() :
-HistoryPos(-1),
-AutoScroll(true),
-ScrollToBottom(false),
-m_font_scale(1.0f) // escala neutra — sem amplificação inicial
-{
-	ClearLog();
-	wmemset(InputBuf, L'\0', IM_COUNTOF(InputBuf));	  // zera buffer wide de entrada
-	memset(InputBufUtf8, '\0', sizeof(InputBufUtf8)); // zera buffer UTF-8 de staging
+std::string Console::WideToUtf8Public(const wchar_t* wstr) {
+	if (!wstr) return ""; // guarda contra nullptr
 
-	AddLog(L"Bem-vindo ao Console ImGui!");
-	AddLog(L"Digite '[yellow]HELP[/]' para ver a lista de comandos.");
-	AddLog(L"[gray]Dica: use A+ / A- na toolbar para ajustar o tamanho do texto.[/]");
+#ifdef _WIN32
+	// Windows: o SO trata surrogates UTF-16 automaticamente
+	int needed =
+		WideCharToMultiByte(CP_UTF8, 0, // página de código alvo: UTF-8
+							wstr, -1,	// fonte: string wide terminada em nulo
+							nullptr, 0, // primeira chamada: consulta o número de bytes necessários
+							nullptr, nullptr);
 
-	// CLEAR — limpa o log
-	RegisterBuiltIn(L"CLEAR", [this]() { this->ClearLog(); });
+	if (needed <= 1) return ""; // string vazia ou erro de conversão
 
-	// HELP — lista todos os comandos registrados
-	RegisterBuiltIn(L"HELP", [this]() {
-		AddLog(L"--- [yellow]Comandos Internos[/] ---");
-		for (const auto& cmd : BuiltInCommands)
-			AddLog(L"- [yellow]%ls[/]: %ls", cmd.name.data(), cmd.description.data());
+	std::string result(needed - 1, '\0'); // aloca sem o byte NUL
+	WideCharToMultiByte(CP_UTF8, 0, wstr, -1, &result[0], needed, nullptr, nullptr);
+	return result;
 
-		AddLog(L"\n--- [cyan]Comandos do Sistema[/] ---");
-		for (const auto& pair : DispatchTable) {
-			const std::wstring& cmd_name = pair.first; // já em UPPERCASE
+#else
+	// Linux/macOS: wchar_t é UCS-4 de 32 bits; codifica cada codepoint manualmente
+	std::string result;
+	while (*wstr) {
+		const uint32_t cp = static_cast<uint32_t>(*wstr++); // valor do codepoint Unicode
 
-			bool is_builtin = false;
-			for (const auto& b : BuiltInCommands)
-				if (b.name == cmd_name) {
-					is_builtin = true;
-					break;
-				}
-
-			if (!is_builtin) {
-				auto it = HelpDescriptions.find(cmd_name);
-				if (it != HelpDescriptions.end())
-					AddLog(L"- [cyan]%ls[/]: %ls", cmd_name.c_str(), it->second.c_str());
-				else AddLog(L"- [cyan]%ls[/]", cmd_name.c_str());
-			}
+		if (cp < 0x80u) {
+			// 1 byte: 0xxxxxxx
+			result += static_cast<char>(cp);
+		} else if (cp < 0x800u) {
+			// 2 bytes: 110xxxxx 10xxxxxx
+			result += static_cast<char>(0xC0u | (cp >> 6));
+			result += static_cast<char>(0x80u | (cp & 0x3Fu));
+		} else if (cp < 0x10000u) {
+			// 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx
+			result += static_cast<char>(0xE0u | (cp >> 12));
+			result += static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+			result += static_cast<char>(0x80u | (cp & 0x3Fu));
+		} else {
+			// 4 bytes: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+			result += static_cast<char>(0xF0u | (cp >> 18));
+			result += static_cast<char>(0x80u | ((cp >> 12) & 0x3Fu));
+			result += static_cast<char>(0x80u | ((cp >> 6) & 0x3Fu));
+			result += static_cast<char>(0x80u | (cp & 0x3Fu));
 		}
-	});
-
-	// HISTORY — mostra as últimas 10 entradas do histórico
-	RegisterBuiltIn(L"HISTORY", [this]() {
-		int first = History.Size - 10; // no máximo as últimas 10 entradas
-		for (int i = first > 0 ? first : 0; i < History.Size; i++)
-			AddLog(L"%3d: %ls\n", i, History[i]);
-	});
-
-	// EXIT — placeholder, deve ser sobrescrito pelo App
-	RegisterBuiltIn(
-		L"EXIT", [this]() { AddLog(L"[error]A lógica de saída deve ser sobrescrita no App![/]"); });
+	}
+	return result;
+#endif
 }
 
-/**
- * @brief Libera todas as wstrings alocadas no heap em Items e History.
- */
-Console::~Console() {
-	ClearLog(); // libera cada Items[i] via ImGui::MemFree
+std::wstring Console::Utf8ToWidePublic(const char* str) {
+	if (!str) return L""; // guarda contra nullptr
 
-	for (int i = 0; i < History.Size; i++)
-		ImGui::MemFree(History[i]); // cada entrada foi alocada com Wcsdup
+#ifdef _WIN32
+	const int needed = MultiByteToWideChar(
+		CP_UTF8, 0,	 // página de código fonte: UTF-8
+		str, -1,	 // fonte: string UTF-8 terminada em nulo
+		nullptr, 0); // primeira chamada: consulta o número de wchar_t necessários
+
+	if (needed <= 0) return L"";
+
+	std::wstring result(needed - 1, L'\0'); // aloca sem o NUL
+	MultiByteToWideChar(CP_UTF8, 0, str, -1, &result[0], needed);
+	return result;
+
+#else
+	// Linux/macOS: mbstowcs decodifica a codificação multi-byte do locale.
+	// O locale deve suportar UTF-8 (chame setlocale(LC_ALL,"") no startup).
+	size_t needed = mbstowcs(nullptr, str, 0); // consulta o tamanho necessário
+
+	if (needed == static_cast<size_t>(-1)) return L""; // erro de conversão
+
+	std::wstring result(needed, L'\0');
+	mbstowcs(&result[0], str, needed + 1); // escreve wchar_t incluindo NUL
+	return result;
+#endif
 }
+
+// ============================================================================
+// Helpers de string wide-char
+// ============================================================================
+
 
 // ============================================================================
 // Gerenciamento de log
@@ -766,29 +846,24 @@ void Console::Draw(const wchar_t* title, bool* p_open) {
 	}
 	ImGuiIO& io = ImGui::GetIO(); // IO global do ImGui — acesso ao MouseWheel acumulado
 
-    // ImGuiHoveredFlags_RootAndChildWindows cobre a janela principal
-    // e o child "ScrollingRegion" com um único teste.
-    const bool console_hovered =
-        ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+	// ImGuiHoveredFlags_RootAndChildWindows cobre a janela principal
+	// e o child "ScrollingRegion" com um único teste.
+	const bool console_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
-    // Informa FontScale::ProcessEvent() para o PRÓXIMO frame.
-    // Quando true, ProcessEvent() pula o Ctrl+Scroll global.
-    FontScale::SetScrollSuppressed(console_hovered);
+	// Informa FontScale::ProcessEvent() para o PRÓXIMO frame.
+	// Quando true, ProcessEvent() pula o Ctrl+Scroll global.
+	FontScale::SetScrollSuppressed(console_hovered);
 
-    // Se o console está em foco E Ctrl está pressionado E há scroll:
-    // aplica a escala LOCAL do console (não toca no ImGuiStyle global).
-    if(console_hovered && io.KeyCtrl && io.MouseWheel != 0.0f)
-    {
-        if(io.MouseWheel > 0.0f)
-            IncreaseFontScale();  // += CONSOLE_FONT_SCALE_STEP, clamp em MAX
-        else
-            DecreaseFontScale();  // -= CONSOLE_FONT_SCALE_STEP, clamp em MIN
+	// Se o console está em foco E Ctrl está pressionado E há scroll:
+	// aplica a escala LOCAL do console (não toca no ImGuiStyle global).
+	if (console_hovered && io.KeyCtrl && io.MouseWheel != 0.0f) {
+		if (io.MouseWheel > 0.0f) IncreaseFontScale(); // += CONSOLE_FONT_SCALE_STEP, clamp em MAX
+		else DecreaseFontScale();					   // -= CONSOLE_FONT_SCALE_STEP, clamp em MIN
 
-        // Consome o MouseWheel para que o ImGui não o use para scroll
-        // da região (sem isso o conteúdo rola E a fonte aumenta ao mesmo tempo).
-        io.MouseWheel = 0.0f;
-    }
-
+		// Consome o MouseWheel para que o ImGui não o use para scroll
+		// da região (sem isso o conteúdo rola E a fonte aumenta ao mesmo tempo).
+		io.MouseWheel = 0.0f;
+	}
 
 
 	// Menu de contexto na barra de título → fechar o console
@@ -848,48 +923,43 @@ void Console::Draw(const wchar_t* title, bool* p_open) {
 
 	// ---- Região de scroll -----------------------------------------------
 
-	const float footer_height = ImGui::GetStyle().ItemSpacing.y
-                           + ImGui::GetFrameHeightWithSpacing();
+	const float footer_height =
+		ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
 
-ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); // linhas compactas
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 1)); // linhas compactas
 
-if(ImGui::BeginChild("ScrollingRegion",
-                      ImVec2(0, -footer_height), false,
-                      ImGuiWindowFlags_HorizontalScrollbar))
-{
-    if(ImGui::BeginPopupContextWindow())
-    {
-        if(ImGui::Selectable("Clear")) ClearLog();
-        ImGui::EndPopup();
-    }
+	if (ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footer_height), false,
+						  ImGuiWindowFlags_HorizontalScrollbar)) {
+		if (ImGui::BeginPopupContextWindow()) {
+			if (ImGui::Selectable("Clear")) ClearLog();
+			ImGui::EndPopup();
+		}
 
-    // PushFont(nullptr, size): nullptr = fonte atual, size = novo tamanho.
-    // Afeta APENAS o conteúdo deste BeginChild — sem tocar no ImGuiStyle global.
-    const float scaled_size = ImGui::GetStyle().FontSizeBase * m_font_scale;
-    ImGui::PushFont(nullptr, scaled_size);
+		// PushFont(nullptr, size): nullptr = fonte atual, size = novo tamanho.
+		// Afeta APENAS o conteúdo deste BeginChild — sem tocar no ImGuiStyle global.
+		const float scaled_size = ImGui::GetStyle().FontSizeBase * m_font_scale;
+		ImGui::PushFont(nullptr, scaled_size);
 
-    if(copy_to_clipboard) ImGui::LogToClipboard();
+		if (copy_to_clipboard) ImGui::LogToClipboard();
 
-    for(wchar_t* item : Items)
-    {
-        const std::string item_utf8 = WideToUtf8(item);
-        if(!Filter.PassFilter(item_utf8.c_str())) continue;
-        RenderTermicolor(item);
-    }
+		for (wchar_t* item : Items) {
+			const std::string item_utf8 = WideToUtf8(item);
+			if (!Filter.PassFilter(item_utf8.c_str())) continue;
+			RenderTermicolor(item);
+		}
 
-    if(copy_to_clipboard) ImGui::LogFinish();
+		if (copy_to_clipboard) ImGui::LogFinish();
 
-    if(ScrollToBottom ||
-       (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()))
-        ImGui::SetScrollHereY(1.0f);
+		if (ScrollToBottom || (AutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()))
+			ImGui::SetScrollHereY(1.0f);
 
-    ScrollToBottom = false;
+		ScrollToBottom = false;
 
-    ImGui::PopFont(); // restaura o tamanho anterior — SEMPRE dentro do BeginChild
-}
-ImGui::EndChild();
+		ImGui::PopFont(); // restaura o tamanho anterior — SEMPRE dentro do BeginChild
+	}
+	ImGui::EndChild();
 
-ImGui::PopStyleVar(); // restaura ItemSpacing — SEMPRE após EndChild
+	ImGui::PopStyleVar(); // restaura ItemSpacing — SEMPRE após EndChild
 
 	// ---- Input de comando -----------------------------------------------
 
@@ -1020,11 +1090,34 @@ int Console::TextEditCallback(ImGuiInputTextCallbackData* data) {
 					data->DeleteChars(static_cast<int>(word_start - data->Buf),
 									  static_cast<int>(word_end - word_start));
 					data->InsertChars(data->CursorPos, common_utf8.c_str());
-				}
+				} else if (data->CursorPos < 1){
 
-				// Lista todos os candidatos no log wide
-				AddLog(L"Candidatos possíveis:");
-				for (int i = 0; i < candidates.Size; i++) AddLog(L"- %ls", candidates[i]);
+					// Lista todos os candidatos no log wide
+					AddLog(L"Candidatos possíveis:");
+					AddLog(L"--- [yellow]Comandos Internos[/] ---");
+					for (const auto& cmd : BuiltInCommands)
+						AddLog(L"- [yellow]%ls[/]: %ls", cmd.name.data(), cmd.description.data());
+
+					AddLog(L"\n--- [cyan]Comandos do Sistema[/] ---");
+					for (const auto& pair : DispatchTable) {
+						const std::wstring& cmd_name = pair.first; // já em UPPERCASE
+
+						bool is_builtin = false;
+						for (const auto& b : BuiltInCommands)
+							if (b.name == cmd_name) {
+								is_builtin = true;
+								break;
+							}
+
+						if (!is_builtin) {
+							auto it = HelpDescriptions.find(cmd_name);
+							if (it != HelpDescriptions.end())
+								AddLog(L"- [cyan]%ls[/]: %ls", cmd_name.c_str(),
+									   it->second.c_str());
+							else AddLog(L"- [cyan]%ls[/]", cmd_name.c_str());
+						}
+					}
+				}
 			}
 			break;
 		}

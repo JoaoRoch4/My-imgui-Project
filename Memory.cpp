@@ -54,7 +54,7 @@
  * AllocImGui() e AllocFontManager() sem nova consulta ao SDL.
  */
 
- #include "pch.hpp"
+#include "pch.hpp"
 
 #include "Memory.hpp"
 
@@ -71,6 +71,7 @@
 #include "StyleEditor.hpp"
 #include "VulkanContext_Wrapper.hpp"
 #include "WindowsConsole.hpp"
+#include "Imageviewerfactory.hpp"
 
 // ============================================================================
 // Definição do ponteiro estático
@@ -119,8 +120,7 @@ m_window(nullptr),
 m_window_scale(1.f),
 m_display_id(0),
 m_display_w(0),
-m_display_h(0) {
-}
+m_display_h(0) {}
 
 /**
  * @brief Destrutor privado — unique_ptrs destroem automaticamente qualquer
@@ -211,15 +211,11 @@ MyResult Memory::AllocAll(SDL_Window *window) {
 	//    swapchain DEVE existir antes de AllocImGui() — assert do ImGui
 	if (!MR_IS_OK(AllocVulkan())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocVulkan");
 
-	if (!MR_IS_OK(AllocAppSettings()))
-		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocAppSettings");
 
 	// 3. App interno: lógica da aplicação; após Vulkan, antes do ImGui
-	if (g_App == nullptr) {
-		if (!MR_IS_OK(AllocApp())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocApp");
-	}
+	// if (!MR_IS_OK(AllocApp())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocApp");
 
-	
+
 	// 4. ImGui: CreateContext + ImplSDL3 + ImplVulkan
 	//    ImplVulkan_Init lê ImageCount do swapchain criado em AllocVulkan()
 	if (!MR_IS_OK(AllocImGui())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocImGui");
@@ -235,9 +231,9 @@ MyResult Memory::AllocAll(SDL_Window *window) {
 	// 7. Console ImGui: usa ImGui::MemAlloc() — requer GImGui != nullptr
 	if (!MR_IS_OK(AllocConsole())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocConsole");
 
-	// 8. StyleEditor: carrega imgui_style.json; requer contexto ImGui ativo
-	if (!MR_IS_OK(AllocStyleEditor()))
-		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocStyleEditor");
+
+	if (!MR_IS_OK(AllocAppSettings()))
+		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocAppSettings");
 
 	// 9. MenuBar: registra itens de menu; requer contexto ImGui ativo
 	if (!MR_IS_OK(AllocMenuBar())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocMenuBar");
@@ -245,6 +241,12 @@ MyResult Memory::AllocAll(SDL_Window *window) {
 	if (!MR_IS_OK(AllocMyWindows()))
 		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocMyWindows");
 
+	// 8. StyleEditor: carrega imgui_style.json; requer contexto ImGui ativo
+	if (!MR_IS_OK(AllocStyleEditor()))
+		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocStyleEditor");
+
+		if (!MR_IS_OK(AllocImageViewerFactory()))
+		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocImageViewerFactory");
 
 	return MyResult::ok;
 }
@@ -406,8 +408,6 @@ MyResult Memory::AllocVulkan() {
 	if (!vulkan_instance->Initialize(extensions)) // VkInstance + VkDevice + filas
 		return MR_MSGBOX_ERR_LOC("VulkanContext::Initialize() falhou.");
 
-	vulkan_instance->SetVSync(false); // framerate desbloqueado por padrão
-
 	// SetupWindow: VkSurfaceKHR + VkSwapchainKHR para m_window
 	// DEVE preceder AllocImGui() — assert do ImGui dependente do ImageCount
 	if (!vulkan_instance->SetupWindow(m_window, w, h))
@@ -462,20 +462,23 @@ MyResult Memory::DestroyApp() {
 }
 
 MyResult Memory::AllocMyWindows() {
-if (my_windows_allocated) return MR_BOTH_ERR_END_LOC("my_windows_allocated já alocado, ignorando.");
+	if (my_windows_allocated)
+		return MR_BOTH_ERR_END_LOC("my_windows_allocated já alocado, ignorando.");
 
 	my_windows_instance = std::make_unique<MyWindows>();
 	if (!my_windows_instance) return MR_MSGBOX_ERR_LOC("Falha ao alocar MyWindows.");
 
 	my_windows_allocated = true;
-	return MyResult::ok; }
+	return MyResult::ok;
+}
 
-MyResult Memory::DestroyMyWindows() { 
-if (!my_windows_allocated) return MyResult::ok;
+MyResult Memory::DestroyMyWindows() {
+	if (!my_windows_allocated) return MyResult::ok;
 
 	my_windows_instance.reset(); // ~App()
 	my_windows_allocated = false;
-	return MyResult::ok; }
+	return MyResult::ok;
+}
 
 // ============================================================================
 // ImGui
@@ -674,6 +677,25 @@ MyResult Memory::DestroyMenuBar() {
 	return MyResult::ok;
 }
 
+MyResult Memory::AllocImageViewerFactory() {
+	if (ImageViewerFactory_allocated) return MR_BOTH_ERR_END_LOC("ImageViewerFactory_allocated já alocado, ignorando.");
+
+
+	ImageViewerFactory_instance = std::make_unique<ImageViewerFactory>();
+	if (!ImageViewerFactory_instance) return MR_MSGBOX_ERR_LOC("Falha ao alocar MenuBar.");
+
+	ImageViewerFactory_allocated = true;
+	return MyResult::ok;
+}
+
+MyResult Memory::DestroyImageViewerFactory() {
+	if (!ImageViewerFactory_allocated) return MyResult::ok;
+
+	ImageViewerFactory_instance.reset();
+	ImageViewerFactory_allocated = false;
+	return MyResult::ok;
+}
+
 // ============================================================================
 // Getters
 // ============================================================================
@@ -705,12 +727,13 @@ App *Memory::GetApp() {
 	return app_instance.get();
 }
 
-MyWindows *Memory::GetMyWindows() { 
-if (!my_windows_allocated) {
+MyWindows *Memory::GetMyWindows() {
+	if (!my_windows_allocated) {
 		MR_BOTH_ERR_END_LOC("GetMyWindows() chamado antes de AllocApp().");
 		return nullptr;
 	}
-	return my_windows_instance.get();}
+	return my_windows_instance.get();
+}
 
 /** @brief Retorna o ImGuiContext_Wrapper ou nullptr se não alocado. */
 ImGuiContext_Wrapper *Memory::GetImGui() {
@@ -779,9 +802,15 @@ SDL_Window *Memory::GetWindow() const {
 AppSettings *Memory::GetAppSettings() const {
 	if (!app_settings_allocated) {
 		MR_BOTH_ERR_END_LOC("GetAppSettings() chamado antes de AllocAppSettings().");
-		
+		return nullptr;
 	}
 	return app_settings_instance.get();
 }
 
-
+ImageViewerFactory *Memory::GetImageViewerFactory() const {
+	if (!ImageViewerFactory_allocated) {
+		MR_BOTH_ERR_END_LOC("GetAppSettings() chamado antes de AllocAppSettings().");
+		return nullptr;
+	}
+	return ImageViewerFactory_instance.get();
+}

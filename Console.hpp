@@ -39,6 +39,29 @@ struct CommandDefinition {
 class Console {
 public:
 
+ /**
+     * @brief Converte wchar_t* para std::string UTF-8.
+     *
+     * Delegada internamente para WideToUtf8() — mesma implementação,
+     * apenas exposta com visibilidade pública.
+     *
+     * @param wstr  String wide terminada em nulo.
+     * @return      std::string codificada em UTF-8.
+     */
+    static std::string WideToUtf8Public(const wchar_t* wstr);
+
+    /**
+     * @brief Converte char* UTF-8 para std::wstring.
+     *
+     * Delegada internamente para Utf8ToWide() — mesma implementação,
+     * apenas exposta com visibilidade pública.
+     *
+     * @param str  String UTF-8 terminada em nulo.
+     * @return     std::wstring.
+     */
+    static std::wstring Utf8ToWidePublic(const char* str);
+
+
     // =========================================================================
     // Constantes de escala de fonte do console
     // =========================================================================

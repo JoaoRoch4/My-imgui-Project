@@ -145,6 +145,7 @@ private:
     // =========================================================================
     // Recursos Vulkan — espelho direto do MyTextureData do exemplo oficial
     // =========================================================================
+    class App* g_App;
 
     VkDescriptorSet m_DS;                ///< Descriptor set retornado por AddTexture — é o ImTextureID
     VkImageView     m_ImageView;         ///< View da imagem para o sampler

@@ -9,6 +9,8 @@
 #include "Console.hpp"
 #include "FontScale.hpp" // FontScale::ProcessEvent, SetSize, ResetToDefault
 #include "StyleEditor.hpp"
+#include "ImageViewerFactory.hpp"
+
 
 #include <implot3d.h>
 #include <implot3d_internal.h>
@@ -22,7 +24,12 @@ g_ImGui(nullptr),
 g_Console(nullptr),
 g_Style(nullptr),
 g_MenuBar(nullptr),
-g_Settings(nullptr) {
+g_Settings(nullptr),
+m_image_viewer_factory(nullptr) {}
+
+MyWindows::~MyWindows() = default;
+MyResult MyWindows::CreateWindows() {
+
 	m_App = Memory::Get()->GetApp();
 	if (!m_App) MR_BOTH_ERR_END_LOC("MyWindows: App instance not found in Memory.");
 	g_Vulkan = Memory::Get()->GetVulkan();
@@ -39,19 +46,9 @@ g_Settings(nullptr) {
 	if (!g_MenuBar) MR_BOTH_ERR_END_LOC("MyWindows: MenuBar instance not found in Memory.");
 	g_Settings = Memory::Get()->GetAppSettings();
 	if (!g_Settings) MR_BOTH_ERR_END_LOC("MyWindows: AppSettings instance not found in Memory.");
-}
-
-MyWindows::~MyWindows() {
-	m_App	   = nullptr;
-	g_Vulkan   = nullptr;
-	g_ImGui	   = nullptr;
-	g_Console  = nullptr;
-	g_Style	   = nullptr;
-	g_MenuBar  = nullptr;
-	g_Settings = nullptr;
-}
-
-MyResult MyWindows::CreateWindows() {
+	m_image_viewer_factory = Memory::Get()->GetImageViewerFactory();
+	if (!m_image_viewer_factory)
+		MR_BOTH_ERR_END_LOC("MyWindows: m_image_viewer_factory instance not found in Memory.");
 	// Sonda o hotkey do console externo Win32 (F1) fora do contexto ImGui.
 	WindowsConsole::poll_hotkey();
 
@@ -60,7 +57,7 @@ MyResult MyWindows::CreateWindows() {
 
 	// Barra de menu principal — desenha BeginMainMenuBar/EndMainMenuBar.
 	g_MenuBar->Draw();
-
+	m_image_viewer_factory->DrawAll();
 	// ---- ImGui Demo Window ----------------------------------------------
 	// Controlada por g_ShowDemo; passa &g_ShowDemo para que o X feche.
 	if (m_App->g_ShowDemo) ImGui::ShowDemoWindow(&m_App->g_ShowDemo);
@@ -94,7 +91,8 @@ MyResult MyWindows::WindowControls() { // ---- Window Controls
 			// Mesmo que retorne false (colapsada), End() DEVE ser chamado.
 			ImGui::Begin("Window Controls",
 						 &m_App->g_Settings->window.show_window_controls); // X zera o bool
-
+			ImGui::Separator();
+			m_image_viewer_factory->DrawOpenButton();
 			// ---- Botão fechar do programa (≠ fechar a janela ImGui) -----
 			const float btn_w	= 60.0f;							 // largura do botão
 			const float padding = ImGui::GetStyle().WindowPadding.x; // margem da janela
@@ -164,8 +162,7 @@ MyResult MyWindows::WindowControls() { // ---- Window Controls
 			if (ImGui::Button("Log Test msg"))
 				g_Console->AddLog(L"Botao pressionado no frame %d \U0001F680",
 								  ImGui::GetFrameCount());
-			if(ImGui::IsItemHovered())
-				ImGui::SetTooltip("testa o console imgui");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("testa o console imgui");
 			ImGui::SameLine();
 			ImGui::SameLine();
 			// Botão que abre/fecha o console externo Win32.

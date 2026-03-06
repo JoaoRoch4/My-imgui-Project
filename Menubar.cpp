@@ -27,6 +27,7 @@
 #include "App.hpp"       // ← traz extern App* g_App e os membros públicos de App
 #include "Console.hpp"   // ← para g_App->g_Console->AddLog()
 #include "Memory.hpp"
+#include "Imageviewerfactory.hpp"
 
 // =============================================================================
 // Construtor
@@ -37,10 +38,8 @@
  * m_ShowAbout começa false — popup "Sobre" fecha até o usuário clicar.
  */
 MenuBar::MenuBar()
-    : m_ShowAbout(false)
-{
+    : m_ShowAbout(false), g_Settings(nullptr) {
 
-        g_Settings = Memory::Get()->GetAppSettings();
 
 }
 
@@ -56,6 +55,10 @@ MenuBar::MenuBar()
  * DrawAboutPopup() fica FORA do par Begin/End (BeginPopupModal exige nível raiz).
  */
 void MenuBar::Draw() {
+	g_App = Memory::Get()->GetApp();
+        g_Settings = Memory::Get()->GetAppSettings();
+	m_ImageViewerFactory = Memory::Get()->GetImageViewerFactory();
+
     if(ImGui::BeginMainMenuBar()) {
 
         DrawMenuFile();                           // File
@@ -85,6 +88,9 @@ void MenuBar::DrawMenuFile() {
 
         if(ImGui::MenuItem("New"))  { /* TODO */ }
         if(ImGui::MenuItem("Open")) { /* TODO */ }
+		if (ImGui::MenuItem("New Picture")) { m_ImageViewerFactory->DrawOpenButton(); }
+
+
 
         ImGui::Separator();
 

@@ -4,8 +4,7 @@
   "dependencies": [
     {
       "name": "freetype",
-      "features":
-      [
+      "features": [
         "brotli",
         "bzip2",
         "png",

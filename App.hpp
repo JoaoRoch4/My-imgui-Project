@@ -65,8 +65,7 @@ struct ScrollingBuffer {
 class App {
 public:
 
-    friend class MyWindows; ///< Permite que MyWindows acesse g_App->g_ShowDemo, etc. para controle
-							///< de janelas
+
     // =========================================================================
     // Construtor / Destrutor
     // =========================================================================
@@ -257,12 +256,3 @@ protected:
 // ============================================================================
 // Ponteiro global para a instância única de App
 // ============================================================================
-
-/**
- * @brief Ponteiro global para a instância App em execução.
- *
- * DEFINIDO em App.cpp:  App* g_App = nullptr;
- * ATRIBUÍDO em Startup(): g_App = Memory::Get()->GetApp();
- * ANULADO em Close():   g_App = nullptr;
- */
-extern App* g_App;
