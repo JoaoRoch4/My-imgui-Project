@@ -126,6 +126,28 @@ public:
         const std::wstring& desc,
         std::function<void()> func);
 
+        /**
+ * @brief Registra um comando que recebe argumentos em tempo de execução.
+ *
+ * O handler recebe um std::vector<std::wstring> com os tokens que
+ * seguem o nome do comando.
+ *
+ *   "theme dark"  → args = { L"dark" }
+ *   "theme"       → args = {}
+ *
+ * @param name  Nome largo do comando (qualquer capitalização).
+ * @param func  Callable void(std::vector<std::wstring> args).
+ */
+void RegisterCommand(const std::wstring& name,
+                     std::function<void(std::vector<std::wstring>)> func);
+
+/**
+ * @brief Sobrecarga com descrição larga + handler com argumentos.
+ */
+void RegisterCommand(const std::wstring& name,
+                     const std::wstring& desc,
+                     std::function<void(std::vector<std::wstring>)> func);
+
     // -------------------------------------------------------------------------
     // Log helpers  (all accept wide-char text)
     // -------------------------------------------------------------------------

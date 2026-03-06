@@ -313,6 +313,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <None Include=".clang-format" />
     <None Include=".gitattributes" />
     <None Include=".gitignore" />
     <None Include="cpp.hint" />
@@ -323,6 +324,7 @@
     <ClCompile Include="App.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
+    <ClCompile Include="App_windows.cpp" />
     <ClCompile Include="Console.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
@@ -1157,6 +1159,7 @@
     <ClCompile Include="MyResult.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
+    <ClCompile Include="MyWindows.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug-Profile|x64'">Create</PrecompiledHeader>
@@ -1357,6 +1360,7 @@
     <ClInclude Include="Menubar.hpp" />
     <ClInclude Include="MicaTheme.h" />
     <ClInclude Include="MyResult.hpp" />
+    <ClInclude Include="MyWindows.hpp" />
     <ClInclude Include="pch.hpp" />
     <ClInclude Include="StyleEditor.hpp" />
     <ClInclude Include="SystemInfo.hpp" />

@@ -138,6 +138,7 @@
     <None Include=".gitattributes" />
     <None Include="vcpkg.json" />
     <None Include="RULES.ruleset" />
+    <None Include=".clang-format" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -452,6 +453,10 @@
     <ClCompile Include="external\implot3d\implot3d.cpp">
       <Filter>external\plot\implot3d\src</Filter>
     </ClCompile>
+    <ClCompile Include="App_windows.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="MyWindows.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.hpp">
@@ -999,6 +1004,9 @@
       <Filter>external\plot\implot3d\inc</Filter>
     </ClInclude>
     <ClInclude Include="Menubar.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="MyWindows.hpp">
       <Filter>Local\include</Filter>
     </ClInclude>
   </ItemGroup>

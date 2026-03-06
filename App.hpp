@@ -3,54 +3,31 @@
 #include "pch.hpp"
 #include "MyResult.hpp"
 #include "Image.hpp"
-#include "Appsettings.hpp"
+#include "Appsettings.hpp" // AppSettings + WindowSettings + FontSettings + StyleSettings + ColorSettings
 
 /**
  * @file App.hpp
  * @brief Classe principal da aplicação — encapsula o ciclo de vida completo.
  *
- * DIVISÃO DE RESPONSABILIDADES
- * -----------------------------
- *  wWinMain      → Memory::Init / Memory::Shutdown / SDL_DestroyWindow / SDL_Quit
- *  App::run()    → SDL_Init / SDL_CreateWindow / Memory::AllocAll / AllocGlobals
- *                  / SDL_ShowWindow / RegisterCommands / MainLoop
- *  AllocGlobals  → aliases (g_Vulkan…g_Style) / AppSettings / MenuBar / AllocImages
- *  Close()       → vkDeviceWaitIdle / Unload imagens / delete posse / DestroyAll
+ * PERSISTÊNCIA UNIFICADA
+ * -----------------------
+ * Toda configuração da aplicação é salva em um único settings.json via
+ * App::SaveConfig() / App::LoadConfig(). O AppSettings agora cobre:
  *
- * POR QUE AllocGlobals() NÃO TEM MAIS PARÂMETROS?
- * -------------------------------------------------
- * Os parâmetros antigos (extensions, w, h, scale) eram passados para
- * VulkanContext::Initialize() e SetupWindow() — que agora vivem dentro de
- * Memory::AllocVulkan(). AllocGlobals() apenas lê os resultados já prontos
- * via Memory::Get()->Get*().
+ *  AppSettings::clear_color  — cor de fundo Vulkan
+ *  AppSettings::window       — flags booleanas (show_demo, show_style_editor, etc.)
+ *  AppSettings::font         — font_size_base e font_scale_main
+ *  AppSettings::style        — dimensões do ImGuiStyle (rounding, padding, etc.)
+ *  AppSettings::color        — as 54 cores do ImGuiStyle::Colors[]
  *
- * FLUXO CORRETO (wWinMain):
- * @code
- *   Memory::Init();
- *   App app;
- *   app.run();                        // AllocAll + AllocGlobals + loop
- *   Memory::Get()->DestroyAll();      // usa g_Window para destruir a surface
- *   Memory::Shutdown();
- *   SDL_DestroyWindow(app.g_Window);  // APÓS Vulkan
- *   SDL_Quit();
- * @endcode
+ * O imgui_style.json separado foi ELIMINADO. StyleEditor::SaveToFile() e
+ * LoadFromFile() agora delegam para App::SaveConfig() / LoadConfig().
  *
  * ALIASES SEM POSSE (g_Vulkan, g_ImGui, g_Console, g_Style)
  * -----------------------------------------------------------
  * A posse desses recursos é do Memory singleton.
- * App guarda cópias dos ponteiros apenas para acesso rápido no loop —
- * evitando Memory::Get()->GetVulkan() em todo frame.
+ * App guarda cópias dos ponteiros apenas para acesso rápido no loop.
  * Close() NÃO faz delete nesses ponteiros; Memory::DestroyAll() cuida deles.
- *
- * PONTEIROS COM POSSE EM App (g_MenuBar, g_Settings)
- * ----------------------------------------------------
- * Criados com new em AllocGlobals(), destruídos com delete em Close().
- *
- * IMAGENS (g_Logo, g_IconSettings)
- * ---------------------------------
- * Carregadas em AllocImages() após AllocGlobals().
- * Descarregadas em Close() ANTES de Memory::DestroyAll() — o Unload()
- * usa g_Vulkan->GetDevice() que ainda existe neste ponto.
  */
 
 // Forward declarations
@@ -61,19 +38,29 @@ class StyleEditor;
 class MenuBar;
 struct SDL_Window;
 
-struct ScrollingBuffer {
-    int              MaxSize; ///< Capacidade máxima do buffer circular
-    int              Offset;  ///< Índice do próximo slot a ser sobrescrito
-    ImVector<ImVec2> Data;    ///< Dados do buffer
+// ============================================================================
+// ScrollingBuffer — buffer circular para gráficos ImPlot
+// ============================================================================
 
-    ScrollingBuffer();
+/**
+ * @brief Buffer circular de ImVec2 para gráficos de scroll contínuo.
+ */
+struct ScrollingBuffer {
+    int              MaxSize; ///< Capacidade máxima do buffer
+    int              Offset;  ///< Índice do próximo slot a ser sobrescrito
+    ImVector<ImVec2> Data;    ///< Dados do buffer circular
+
+    ScrollingBuffer();                    ///< Constrói com MaxSize=2000
     ~ScrollingBuffer() = default;
-    ScrollingBuffer(int max_size);
+    explicit ScrollingBuffer(int max_size); ///< Constrói com capacidade customizada
 
     void AddPoint(float x, float y); ///< Insere ponto; sobrescreve o mais antigo se cheio
     void Erase();                     ///< Limpa todos os dados
 };
 
+// ============================================================================
+// App
+// ============================================================================
 
 class App {
 public:
@@ -85,8 +72,10 @@ public:
     App();
     ~App() = default;
 
-	bool started; ///< true após Startup() ser chamado com sucesso
-	void Startup();  ///< Inicializa subsistemas e recursos (chamado por run())
+    bool started; ///< true após Startup() ser chamado com sucesso
+
+    /** @brief Atribui g_App = this e chama InitRenderDoc(). */
+    void Startup();
 
     RENDERDOC_API_1_1_2* rdoc_api = NULL; ///< API do RenderDoc — nullptr se não injetado
 
@@ -120,55 +109,61 @@ public:
      *
      * Fluxo: SDL_Init → CreateWindow → Memory::AllocAll → AllocGlobals
      *        → SDL_ShowWindow → RegisterCommands → MainLoop → return
-     *
-     * SDL_DestroyWindow e SDL_Quit NÃO são chamados aqui — ficam em wWinMain
-     * após Memory::DestroyAll(), para que Vulkan destrua a surface com a
-     * janela ainda válida.
      */
     MyResult run();
+
+    
 
     /** @brief Renderiza todas as janelas ImGui do frame atual. */
     MyResult Windows();
 
-    /** @brief Desativa viewports flutuantes e reposiciona janelas (chamada por MenuBar). */
+    /** @brief Desativa viewports flutuantes e reposiciona janelas. */
     void DisableViewportDocking();
 
     // =========================================================================
-    // Estado de UI — público para acesso direto de MenuBar e comandos
+    // Estado de UI — espelha AppSettings::window para acesso rápido no loop
     // =========================================================================
+    //
+    // Estes membros são ALIASES de leitura/escrita para g_Settings->window.*
+    // Após LoadConfig(), SyncFlagsFromSettings() copia os valores salvos para
+    // cá. SaveConfig() faz o caminho inverso via SyncFlagsToSettings().
+    //
+    // POR QUE NÃO ACESSAR g_Settings->window.* DIRETAMENTE NO LOOP?
+    // → Manter os nomes originais (g_Done, g_ShowDemo, etc.) evita alterar
+    //   todo o código de Windows() e dos comandos do console que já os usam.
 
-    bool  g_Done;          ///< true = MainLoop encerra na próxima iteração
-    bool  g_ShowDemo;      ///< Exibe ImGui Demo Window
-    bool  g_ShowStyleEd;   ///< Exibe Style Editor
-    bool  g_IsFullscreen;  ///< Janela em modo fullscreen
-    bool  g_grafico;       ///< Exibe gráfico de exemplo (ScrollingBuffer)
-    bool  bViewportDocking; ///< true = viewports flutuantes habilitados
-    bool bImPlot3d_DemoRealtimePlots;
-    bool bImPlot3d_DemoQuadPlots;
-    bool bImPlot3d_DemoTickLabels;
+    bool  g_Done;          ///< true = MainLoop encerra na próxima iteração (não persistido)
+    bool  g_ShowDemo;      ///< Espelho de AppSettings::window.show_demo
+    bool  g_ShowStyleEd;   ///< Espelho de AppSettings::window.show_style_editor
+    bool  g_IsFullscreen;  ///< Espelho de AppSettings::window.is_fullscreen
+    bool  g_grafico;       ///< Espelho de AppSettings::window.show_graph
+    bool m_Window_Controls;
 
-    float  g_window_opacity; ///< Opacidade da janela SDL [0.1, 1.0]
+    bool  bViewportDocking;            ///< Espelho de AppSettings::window.viewport_docking
+    bool  bImPlot3d_DemoRealtimePlots; ///< Espelho de AppSettings::window.implot3d_realtime_plots
+    bool  bImPlot3d_DemoQuadPlots;     ///< Espelho de AppSettings::window.implot3d_quad_plots
+    bool  bImPlot3d_DemoTickLabels;    ///< Espelho de AppSettings::window.implot3d_tick_labels
+
+    float  g_window_opacity; ///< Opacidade da janela SDL [0.1, 1.0] (não persistida)
     float* g_color_ptr;      ///< Ponteiro para g_Settings->clear_color[0]
 
     ImGuiIO* g_io; ///< Referência ao ImGuiIO — atribuída em MainLoop()
 
     // =========================================================================
     // Aliases sem posse — dono: Memory singleton
-    // NÃO chame delete: Close() delega ao Memory::DestroyAll()
-    // Atribuídos em AllocGlobals() APÓS Memory::AllocAll() retornar.
     // =========================================================================
 
     VulkanContext*        g_Vulkan;  ///< Contexto Vulkan (device, queues, swapchain)
     ImGuiContext_Wrapper* g_ImGui;   ///< Contexto ImGui (backends SDL3 + Vulkan)
     Console*              g_Console; ///< Console ImGui wide-char
-    StyleEditor*          g_Style;   ///< Editor de estilo ImGui com JSON
+    StyleEditor*          g_Style;   ///< Editor de estilo ImGui
 
     // =========================================================================
-    // Ponteiros com posse em App — Close() faz delete nestes
+    // Ponteiros com posse parcial em App
     // =========================================================================
 
     MenuBar*     g_MenuBar;  ///< Barra de menu principal
-    AppSettings* g_Settings; ///< Configurações persistidas em settings.json
+    AppSettings* g_Settings; ///< Configurações persistidas — dono: Memory singleton
 
     // =========================================================================
     // Janela SDL
@@ -177,7 +172,7 @@ public:
     SDL_Window* g_Window; ///< Criada em run(), destruída em wWinMain após DestroyAll()
 
     // =========================================================================
-    // Imagens — posse de App, Unload() em Close() ANTES de DestroyAll()
+    // Imagens
     // =========================================================================
 
     Image g_Logo;         ///< Logo principal da aplicação
@@ -187,58 +182,82 @@ public:
     // Persistência
     // =========================================================================
 
-    void SaveConfig(); ///< Serializa *g_Settings → settings.json
-    void LoadConfig(); ///< Carrega settings.json → *g_Settings
+    /**
+     * @brief Copia os flags de App para AppSettings e serializa para settings.json.
+     *
+     * DEVE ser chamado sempre que qualquer flag ou configuração mudar:
+     *  - Checkbox de show_demo, show_style_editor, etc.
+     *  - Slider de font_scale_main ou font_size_base.
+     *  - Qualquer alteração no StyleEditor.
+     */
+    void SaveConfig();
+
+    /**
+     * @brief Carrega settings.json em *g_Settings e aplica ao estado de App.
+     *
+     * Chamado em AllocGlobals() após g_Settings ser atribuído.
+     * Se o arquivo não existir ou estiver corrompido, mantém os defaults.
+     */
+    void LoadConfig();
 
 private:
 
-    std::string m_ConfigFile; ///< Caminho do JSON de configuração
+    std::string m_ConfigFile; ///< Caminho do JSON de configuração ("settings.json")
+
+    // =========================================================================
+    // Helpers de sincronização de flags
+    // =========================================================================
+
+    /**
+     * @brief Copia AppSettings::window.* → membros públicos g_Show*, g_grafico, etc.
+     *
+     * Chamado em LoadConfig() para que o primeiro frame já use os valores salvos.
+     */
+    void SyncFlagsFromSettings();
+
+    /**
+     * @brief Copia membros públicos g_Show*, g_grafico, etc. → AppSettings::window.*
+     *
+     * Chamado no início de SaveConfig() para capturar o estado atual antes de serializar.
+     */
+    void SyncFlagsToSettings();
+
+    /**
+     * @brief Lê ImGuiStyle atual e salva em g_Settings->style e g_Settings->color.
+     *
+     * Chamado em SaveConfig() para capturar qualquer alteração feita pelo StyleEditor
+     * ou por código que escreva diretamente em ImGui::GetStyle().
+     */
+    void SyncStyleFromImGui();
+
+    /**
+     * @brief Aplica g_Settings->style e g_Settings->color ao ImGuiStyle atual.
+     *
+     * Chamado em LoadConfig() para restaurar a aparência salva.
+     */
+    void ApplyStyleToImGui();
 
     // =========================================================================
     // Funções internas do ciclo de vida
     // =========================================================================
 
-    /**
-     * @brief Extrai aliases do Memory e inicializa AppSettings, MenuBar e Images.
-     *
-     * DEVE ser chamado APÓS Memory::AllocAll() — os ponteiros só estão
-     * válidos depois que AllocAll() retorna com sucesso.
-     * Sem parâmetros: Vulkan/ImGui já foram inicializados pelo Memory.
-     */
     MyResult AllocGlobals();
-
-    /**
-     * @brief Carrega g_Logo, g_IconSettings, etc.
-     * Falhas não são fatais — IsLoaded() retorna false e Draw() é no-op.
-     */
     MyResult AllocImages();
-
-    /**
-     * @brief Ciclo de destruição: GPU idle → Unload → delete → DestroyAll → SDL.
-     */
-    void Close();
-
-    /** @brief Registra EXIT, QUIT, BREAK, SPECS, VSYNC, etc. no Console. */
+    void     Close();
     MyResult RegisterCommands();
-
-    /** @brief Loop SDL + ImGui + Vulkan — roda até g_Done == true. */
     MyResult MainLoop();
-
-    /** @brief Obtém resolução do desktop via Win32 GetDesktopWindow(). */
     MyResult GetDesktopResolution(int& horizontal, int& vertical);
 };
 
-// =============================================================================
+// ============================================================================
 // Ponteiro global para a instância única de App
-// =============================================================================
+// ============================================================================
 
 /**
  * @brief Ponteiro global para a instância App em execução.
  *
  * DEFINIDO em App.cpp:  App* g_App = nullptr;
- * ATRIBUÍDO em App():   g_App = this;
+ * ATRIBUÍDO em Startup(): g_App = Memory::Get()->GetApp();
  * ANULADO em Close():   g_App = nullptr;
- *
- * Válido apenas no intervalo [App::App() .. App::Close()].
  */
 extern App* g_App;

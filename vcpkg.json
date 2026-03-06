@@ -2,7 +2,17 @@
   "name": "app",
   "version": "0.0.1",
   "dependencies": [
-    "freetype",
+    {
+      "name": "freetype",
+      "features":
+      [
+        "brotli",
+        "bzip2",
+        "png",
+        "subpixel-rendering",
+        "zlib"
+      ]
+    },
     {
       "name": "reflectcpp",
       "features": [

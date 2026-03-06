@@ -32,16 +32,16 @@ public:
     struct msgbox {
         // --- original overloads (message only) ---
         static MyResult errorW      (const std::wstring& msgW = L"Erro desconhecido");
-        static MyResult error_endW  (const std::wstring& msgW = L"Erro desconhecido");
+        [[noreturn]] static MyResult error_endW  (const std::wstring& msgW = L"Erro desconhecido");
         static MyResult warningW    (const std::wstring& msgW = L"Aviso");
-        static MyResult warning_endW(const std::wstring& msgW = L"Aviso");
+        [[noreturn]] static MyResult warning_endW(const std::wstring& msgW = L"Aviso");
         static MyResult normalW     (const std::wstring& msgW = L"");
 
         // --- new overloads (message + source location) ---
         static MyResult errorW      (const std::wstring& msgW, const SourceLocation& loc);
-        static MyResult error_endW  (const std::wstring& msgW, const SourceLocation& loc);
+        [[noreturn]] static MyResult error_endW  (const std::wstring& msgW, const SourceLocation& loc);
         static MyResult warningW    (const std::wstring& msgW, const SourceLocation& loc);
-        static MyResult warning_endW(const std::wstring& msgW, const SourceLocation& loc);
+        [[noreturn]] static MyResult warning_endW(const std::wstring& msgW, const SourceLocation& loc);
         static MyResult normalW     (const std::wstring& msgW, const SourceLocation& loc);
     };
 
@@ -50,21 +50,21 @@ public:
     struct msgcls {
         // --- original overloads (message only) ---
         static MyResult errorW      (const std::wstring& msgW = L"Erro desconhecido");
-        static MyResult error_endW  (const std::wstring& msgW = L"Erro desconhecido");
+        [[noreturn]] static MyResult error_endW  (const std::wstring& msgW = L"Erro desconhecido");
         static MyResult warningW    (const std::wstring& msgW = L"Aviso");
-        static MyResult warning_endW(const std::wstring& msgW = L"Aviso");
+        [[noreturn]] static MyResult warning_endW(const std::wstring& msgW = L"Aviso");
         static MyResult normalW     (const std::wstring& msgW = L"");
 
         // --- new overloads (message + source location) ---
         static MyResult errorW      (const std::wstring& msgW, const SourceLocation& loc);
-        static MyResult error_endW  (const std::wstring& msgW, const SourceLocation& loc);
+        [[noreturn]] static MyResult error_endW  (const std::wstring& msgW, const SourceLocation& loc);
         static MyResult warningW    (const std::wstring& msgW, const SourceLocation& loc);
-        static MyResult warning_endW(const std::wstring& msgW, const SourceLocation& loc);
+       [[noreturn]] static MyResult warning_endW(const std::wstring& msgW, const SourceLocation& loc);
         static MyResult normalW     (const std::wstring& msgW, const SourceLocation& loc);
     };
 
     // ----------------------------------------------------------------
-    operator bool() const { return success; }
+    operator bool() const noexcept { return success; }
 
 private:
     MyResult(bool ok, std::optional<std::wstring> msgW = std::nullopt,
@@ -225,6 +225,33 @@ private:
 
 #define MR_CLS_NORMAL_LOC(msg) \
     MyResult::msgcls::normalW(TXT(msg), _MR_LOC())  // normal não quebra
+
+    // ====================================================================
+// Macros duais — reutilizam as macros originais de cada canal.
+// msgcls é chamado primeiro (side-effect de log no console),
+// msgbox é chamado depois e seu resultado é retornado.
+// _MR_BREAK() já está embutido nas macros originais — não duplicar.
+// ====================================================================
+
+// --------------------------------------------------------------------
+// Sem SourceLocation — contexto embutido via _MR_CTX (var + msg)
+// --------------------------------------------------------------------
+
+#define MR_BOTH_ERR(var, msg)      ( MR_CLS_ERR(var, msg),      MR_MSGBOX_ERR(var, msg)      )
+#define MR_BOTH_ERR_END(var, msg)  ( MR_CLS_ERR_END(var, msg),  MR_MSGBOX_ERR_END(var, msg)  )
+#define MR_BOTH_WARN(var, msg)     ( MR_CLS_WARN(var, msg),     MR_MSGBOX_WARN(var, msg)     )
+#define MR_BOTH_WARN_END(var, msg) ( MR_CLS_WARN_END(var, msg), MR_MSGBOX_WARN_END(var, msg) )
+#define MR_BOTH_OK(msg)            ( MR_CLS_NORMAL(msg),        MR_MSGBOX_OK(msg)            )
+
+// --------------------------------------------------------------------
+// Com SourceLocation (_LOC) — struct SourceLocation via _MR_LOC()
+// --------------------------------------------------------------------
+
+#define MR_BOTH_ERR_LOC(msg)      ( MR_CLS_ERR_LOC(msg),      MR_MSGBOX_ERR_LOC(msg)      )
+#define MR_BOTH_ERR_END_LOC(msg)  ( MR_CLS_ERR_END_LOC(msg),  MR_MSGBOX_ERR_END_LOC(msg)  )
+#define MR_BOTH_WARN_LOC(msg)     ( MR_CLS_WARN_LOC(msg),     MR_MSGBOX_WARN_LOC(msg)     )
+#define MR_BOTH_WARN_END_LOC(msg) ( MR_CLS_WARN_END_LOC(msg), MR_MSGBOX_WARN_END_LOC(msg) )
+#define MR_BOTH_OK_LOC(msg)       ( MR_CLS_NORMAL_LOC(msg),   MR_MSGBOX_OK_LOC(msg)       )
 
 // ====================================================================
 // Utilitários

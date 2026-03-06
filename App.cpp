@@ -2,37 +2,26 @@
  * @file App.cpp
  * @brief Implementação de App — ciclo de vida completo da aplicação.
  *
- * DEFINIÇÃO DO PONTEIRO GLOBAL
- * -----------------------------
- * A linha:
- *   App* g_App = nullptr;
+ * PERSISTÊNCIA UNIFICADA EM settings.json
+ * ----------------------------------------
+ * SaveConfig() / LoadConfig() persistem em um único arquivo:
+ *  - AppSettings::window      — flags booleanas
+ *  - AppSettings::font        — tamanho e escala de fonte
+ *  - AppSettings::style       — dimensões do ImGuiStyle
+ *  - AppSettings::color       — 54 cores do ImGuiStyle
+ *  - AppSettings::mica_theme  — ThemeConfig completo do tema Mica
+ *  - AppSettings::use_mica_theme — liga/desliga o Mica
  *
- * É a DEFINIÇÃO real da variável. App.hpp apenas a DECLARA com extern.
- * O linker resolve a referência de qualquer .obj que inclua App.hpp
- * para este símbolo aqui.
+ * ORDEM DE APLICAÇÃO EM ApplyStyleToImGui():
+ *  1. FontSettings  → ImGuiStyle::FontSizeBase + FontScaleMain
+ *  2. StyleSettings → ImGuiStyle (dimensões: rounding, padding…)
+ *  3. ColorSettings → ImGuiStyle::Colors[] (54 cores salvas)
+ *  4. Se use_mica_theme: MicaTheme::ApplyMicaTheme(mica_theme)
+ *     sobrescreve tanto cores quanto dimensões com os valores do Mica.
  *
- * FLUXO DE VIDA DO g_App
- *   App::App()   → g_App = this     (atribui)
- *   App::Close() → g_App = nullptr  (anula, previne use-after-free)
- *
- * DIVISÃO run() / AllocGlobals()
- * --------------------------------
- * run()          → SDL + janela + Memory::AllocAll(window)
- * AllocGlobals() → aliases dos ponteiros Memory + AppSettings + MenuBar + Images
- *
- * Memory::AllocAll() aloca os recursos (Vulkan, ImGui, Console, etc.).
- * AllocGlobals() lê esses recursos via Memory::Get()->Get*() e os copia
- * para os membros de App (g_Vulkan, g_ImGui, g_Console, g_Style) — que são
- * aliases SEM posse; a posse continua no Memory singleton.
- *
- * Por que aliases e não Memory::Get()->Get*() direto no loop?
- *   → Evita uma chamada de função extra por acesso no hot-path do frame.
- *   → Mantém a sintaxe curta: g_Vulkan->X em vez de Memory::Get()->GetVulkan()->X.
- *
- * PERSISTÊNCIA DE ESCALA DE FONTE
- * --------------------------------
- * io.FontGlobalScale é aplicado em AllocGlobals() logo após LoadConfig()
- * para que o PRIMEIRO frame já renderize no tamanho salvo — sem "piscar".
+ * Portanto, quando Mica está ativo ele sempre tem a última palavra.
+ * As cores salvas em ColorSettings refletem o estado pós-Mica, então
+ * num round-trip save→load o resultado é idêntico.
  */
 
 #include "pch.hpp"
@@ -45,20 +34,23 @@
 #include "VulkanContext_Wrapper.hpp"
 #include "ImGuiContext_Wrapper.hpp"
 #include "SystemInfo.hpp"
+#include "MicaTheme.h"  // MicaTheme::ApplyMicaTheme — chamado em ApplyStyleToImGui()
+#include "FontScale.hpp" // FontScale::ProcessEvent, SetSize, ResetToDefault
 
 #include <implot3d.h>
-	#include <implot3d_internal.h>
-    #include<implot3d_demo.cpp>
+#include <implot3d_internal.h>
+#include <implot3d_demo.cpp>
 
 // =============================================================================
-// Definição do ponteiro global — uma única vez em todo o projeto
+// Definição do ponteiro global
 // =============================================================================
 
 /**
  * @brief Instância global de App — única no processo.
  *
  * Declarada como "extern App* g_App" em App.hpp.
- * Qualquer .cpp que inclua App.hpp e acesse g_App resolve para este símbolo.
+ * Atribuída em Startup() via Memory::Get()->GetApp().
+ * Anulada em Close().
  */
 App* g_App = nullptr;
 
@@ -67,84 +59,73 @@ App* g_App = nullptr;
 // =============================================================================
 
 /**
- * @brief Inicializa membros com null/false e expõe a instância via g_App.
+ * @brief Inicializa todos os membros com valores neutros/nulos.
  *
- * g_App = this é atribuído ANTES de qualquer código que possa usar g_App,
- * garantindo que MenuBar e outros possam acessar a instância desde o início.
+ * Valores reais dos flags booleanos e do estilo são restaurados em
+ * LoadConfig() → SyncFlagsFromSettings() / ApplyStyleToImGui(),
+ * chamados dentro de AllocGlobals(). Aqui apenas garantimos que
+ * nenhum membro fica com lixo de memória antes disso.
  */
 App::App()
     : started(false)
-    , bViewportDocking(false)
-    , g_Done(false)
-    , g_ShowDemo(true)
-    , g_ShowStyleEd(false)
-    , g_IsFullscreen(false)
-    , g_grafico(false)
-    , g_window_opacity(1.0f)   // 1.0 = totalmente opaco
-    , g_color_ptr(nullptr)
-    , g_io(nullptr)
-    , g_Vulkan(nullptr)        // alias — preenchido em AllocGlobals()
-    , g_ImGui(nullptr)         // alias — preenchido em AllocGlobals()
-    , g_Console(nullptr)       // alias — preenchido em AllocGlobals()
-    , g_Style(nullptr)         // alias — preenchido em AllocGlobals()
-    , g_MenuBar(nullptr)       // posse de App — alocado em AllocGlobals()
-    , g_Settings(nullptr)      // posse de App — alocado em AllocGlobals()
-    , g_Window(nullptr)        // preenchido em run() após SDL_CreateWindow
-    , m_ConfigFile("settings.json")
+    , bViewportDocking(false)             // sobrescrito por SyncFlagsFromSettings()
+    , g_Done(false)                       // nunca persistido — sempre false ao iniciar
+    , g_ShowDemo(true)                    // sobrescrito por SyncFlagsFromSettings()
+    , g_ShowStyleEd(false)               // sobrescrito por SyncFlagsFromSettings()
+    , g_IsFullscreen(false)              // sobrescrito por SyncFlagsFromSettings()
+    , g_grafico(false)                   // sobrescrito por SyncFlagsFromSettings()
+    , bImPlot3d_DemoRealtimePlots(false) // sobrescrito por SyncFlagsFromSettings()
+    , bImPlot3d_DemoQuadPlots(false)    // sobrescrito por SyncFlagsFromSettings()
+    , bImPlot3d_DemoTickLabels(false)   // sobrescrito por SyncFlagsFromSettings()
+    , g_window_opacity(1.0f)             // não persistido — sempre 1.0 ao iniciar
+    , g_color_ptr(nullptr)              // apontado para g_Settings->clear_color[0] em MainLoop()
+    , g_io(nullptr)                     // atribuído em MainLoop()
+    , g_Vulkan(nullptr)                 // alias — preenchido em AllocGlobals()
+    , g_ImGui(nullptr)                  // alias — preenchido em AllocGlobals()
+    , g_Console(nullptr)                // alias — preenchido em AllocGlobals()
+    , g_Style(nullptr)                  // alias — preenchido em AllocGlobals()
+    , g_MenuBar(nullptr)                // alias — preenchido em AllocGlobals()
+    , g_Settings(nullptr)               // alias — preenchido em AllocGlobals()
+    , g_Window(nullptr)                 // preenchido em run() após SDL_CreateWindow
+    , m_ConfigFile("settings.json")     // caminho fixo do arquivo de configuração
 {
-    // Expõe esta instância globalmente para que MenuBar.cpp e outros
-    // possam acessar os membros públicos via g_App->membro
-	
-    
-}
-
-void App::Startup() {
-g_App = Memory::Get()->GetApp();
-    InitRenderDoc();
-	started = true;
 }
 
 // =============================================================================
-// run() — ponto de entrada: SDL + janela + AllocAll + AllocGlobals + loop
+// Startup
+// =============================================================================
+
+/**
+ * @brief Expõe a instância via g_App e conecta ao RenderDoc se disponível.
+ *
+ * Deve ser chamado por wWinMain APÓS Memory::Get()->AllocApp().
+ */
+void App::Startup() {
+    g_App = Memory::Get()->GetApp(); // expõe a instância do Memory globalmente
+    InitRenderDoc();                  // conecta ao RenderDoc se a DLL estiver injetada
+    started = true;
+}
+
+// =============================================================================
+// run()
 // =============================================================================
 
 /**
  * @brief Inicializa SDL, cria a janela, aloca recursos e roda o loop principal.
- *
- * DIVISÃO DE RESPONSABILIDADES
- * -----------------------------
- *  run()          → SDL_Init, SDL_CreateWindow, Memory::AllocAll, AllocGlobals,
- *                   SDL_ShowWindow, RegisterCommands, MainLoop
- *  AllocGlobals() → aliases (g_Vulkan…g_Style), AppSettings, MenuBar, AllocImages
- *  wWinMain       → Memory::DestroyAll, Memory::Shutdown, SDL_DestroyWindow, SDL_Quit
- *
- * POR QUE SDL_DestroyWindow FICA EM wWinMain E NÃO AQUI?
- * --------------------------------------------------------
- * Memory::DestroyAll() chama VulkanContext::CleanupWindow() que usa g_Window
- * para destruir a VkSurfaceKHR antes da VkInstance.
- * Se SDL_DestroyWindow fosse chamado aqui, DestroyAll() em wWinMain receberia
- * um handle inválido → crash/UB. Por isso a janela sobrevive até depois de
- * DestroyAll() retornar.
  */
 MyResult App::run() {
-	if(!started)
+    if(!started)
         return MR_MSGBOX_ERR_END_LOC("App::Startup() must be called before run().");
-    // ---- 1. Inicializa o SDL -----------------------------------------------
 
-    // SDL_INIT_VIDEO:   janela + teclado + mouse
-    // SDL_INIT_GAMEPAD: controles (requerido pelo backend ImGui SDL3)
+    // ---- 1. SDL_Init -----------------------------------------------------
     if(!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
         return MR_MSGBOX_ERR_END_LOC(
             "Failed to initialize SDL: " + StrToWStr(SDL_GetError()));
 
-    // ---- 2. Escala DPI do monitor primário --------------------------------
-    // Usada APENAS para o tamanho inicial da janela.
-    // AllocGlobals() detecta o monitor REAL da janela após AllocAll().
+    // ---- 2. Escala DPI do monitor primário (para tamanho inicial da janela)
     const float scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 
-    // ---- 3. Resolução do desktop ------------------------------------------
-    // Garante um tamanho inicial explícito — alguns drivers criam a janela
-    // com tamanho zero se só SDL_WINDOW_MAXIMIZED for passado.
+    // ---- 3. Resolução do desktop -----------------------------------------
     int desktop_w = 0;
     int desktop_h = 0;
     if(!MR_IS_OK(GetDesktopResolution(desktop_w, desktop_h)) ||
@@ -153,19 +134,13 @@ MyResult App::run() {
         return MR_MSGBOX_ERR_END_LOC("Failed to get desktop resolution.");
     }
 
-    // ---- 4. Cria a janela SDL ----------------------------------------------
-
-    // SDL_WINDOW_VULKAN            → habilita VkSurfaceKHR via SDL
-    // SDL_WINDOW_RESIZABLE         → usuário pode redimensionar
-    // SDL_WINDOW_HIDDEN            → oculta até SDL_ShowWindow()
-    // SDL_WINDOW_HIGH_PIXEL_DENSITY → pixels físicos em monitores HiDPI
-    // SDL_WINDOW_MAXIMIZED         → maximizada ao ser exibida
+    // ---- 4. Cria a janela SDL --------------------------------------------
     constexpr SDL_WindowFlags flags =
-        SDL_WINDOW_VULKAN             |
-        SDL_WINDOW_RESIZABLE          |
-        SDL_WINDOW_HIDDEN             |
-        SDL_WINDOW_HIGH_PIXEL_DENSITY |
-        SDL_WINDOW_MAXIMIZED;
+        SDL_WINDOW_VULKAN             |  // habilita VkSurfaceKHR via SDL
+        SDL_WINDOW_RESIZABLE          |  // usuário pode redimensionar
+        SDL_WINDOW_HIDDEN             |  // oculta até SDL_ShowWindow()
+        SDL_WINDOW_HIGH_PIXEL_DENSITY |  // pixels físicos em monitores HiDPI
+        SDL_WINDOW_MAXIMIZED;            // maximizada ao ser exibida
 
     g_Window = SDL_CreateWindow(
         "Dear ImGui SDL3+Vulkan",
@@ -179,131 +154,79 @@ MyResult App::run() {
             "Failed to create SDL window: " + StrToWStr(SDL_GetError()));
     }
 
-    // ---- 5. Aloca Vulkan, ImGui, fontes, console, style via Memory --------
-    // AllocAll() detecta o monitor real da janela via SDL_GetDisplayForWindow,
-    // cria o swapchain, inicializa ImGui e carrega fontes.
-    // Os recursos ficam no Memory — AllocGlobals() extrai os ponteiros.
+    // ---- 5. Aloca Vulkan, ImGui, fontes, console, style via Memory -------
     if(!MR_IS_OK(Memory::Get()->AllocAll(g_Window)))
         return MR_MSGBOX_ERR_END_LOC("Memory::AllocAll falhou.");
 
-    // ---- 6. Atribui aliases + AppSettings + MenuBar + Images --------------
-    // DEVE ser chamado APÓS AllocAll() — os ponteiros do Memory só são
-    // válidos depois que AllocAll() retorna com sucesso.
+    // ---- 6. Aliases + LoadConfig + AllocImages ---------------------------
     if(!MR_IS_OK(AllocGlobals()))
         return MR_MSGBOX_ERR_END_LOC("AllocGlobals falhou.");
 
-    // ---- 7. Exibe a janela ------------------------------------------------
-    // Após swapchain e ImGui prontos — evita frame em branco na abertura.
+    // ---- 7. Exibe a janela -----------------------------------------------
     SDL_SetWindowPosition(g_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-    SDL_ShowWindow(g_Window); // aparece já maximizada
+    SDL_ShowWindow(g_Window);
 
-    // ---- 8. Registra comandos do console ----------------------------------
-    // Console alocado por AllocAll() e agora acessível via g_Console (alias).
+    // ---- 8. Restaura fullscreen se estava ativo -------------------------
+    // Feito APÓS SDL_ShowWindow para que o SDL aplique o modo corretamente.
+    if(g_IsFullscreen)
+        SDL_SetWindowFullscreen(g_Window, true);
+
+    // ---- 9. Registra comandos do console ---------------------------------
     if(!MR_IS_OK(RegisterCommands()))
         return MR_MSGBOX_ERR_END_LOC("RegisterCommands falhou.");
 
-    // ---- 9. Loop principal ------------------------------------------------
+    // ---- 10. Loop principal ----------------------------------------------
     const MyResult result = MainLoop();
 
-    // ---- 10. Retorna para wWinMain ----------------------------------------
-    // wWinMain chama na sequência:
-    //   Memory::Get()->DestroyAll() → usa g_Window para destruir a surface
-    //   Memory::Shutdown()          → delete do singleton
-    //   SDL_DestroyWindow(g_Window) → janela destruída APÓS o Vulkan
-    //   SDL_Quit()
     return result;
 }
 
 // =============================================================================
-// AllocGlobals — aliases + AppSettings + MenuBar + Images
+// AllocGlobals
 // =============================================================================
 
 /**
- * @brief Extrai os ponteiros do Memory e inicializa os subsistemas de App.
+ * @brief Extrai aliases do Memory, carrega a configuração e aplica ao ImGui.
  *
- * DEVE ser chamado APÓS Memory::AllocAll() — os Get*() retornam nullptr
- * antes disso, o que causaria o assert/crash que você estava vendo.
- *
- * ORDEM OBRIGATÓRIA DENTRO DESTA FUNÇÃO:
- *  1. Aliases (g_Vulkan … g_Style) — lidos do Memory
- *  2. Validação: assert que nenhum alias é nullptr
- *  3. new AppSettings + LoadConfig()
- *  4. io.FontGlobalScale = font_scale salvo  ← ANTES do primeiro NewFrame()
- *  5. new MenuBar
- *  6. AllocImages()
- *
- * POR QUE SEM PARÂMETROS?
- * ------------------------
- * Os parâmetros antigos (extensions, w, h, scale) eram passados para
- * VulkanContext::Initialize() e SetupWindow() — que agora vivem dentro de
- * Memory::AllocVulkan(). AllocGlobals() apenas lê o resultado já pronto.
+ * ORDEM OBRIGATÓRIA:
+ *  1. Atribuir aliases (g_Vulkan … g_Settings, g_MenuBar)
+ *  2. Validar aliases
+ *  3. LoadConfig() → SyncFlagsFromSettings() + ApplyStyleToImGui()
+ *     (inclui MicaTheme::ApplyMicaTheme se use_mica_theme == true)
+ *  4. AllocImages()
  */
 MyResult App::AllocGlobals() {
 
-    // ---- 1. Aliases — ponteiros SEM posse, dono é o Memory ----------------
-    // Memory::Get()->Get*() retorna nullptr se o recurso não foi alocado.
-    // Isso aconteceria se AllocAll() não tivesse sido chamado — o assert
-    // abaixo detecta isso em builds Debug.
+    // ---- 1. Aliases sem posse — dono é o Memory -------------------------
+    g_Vulkan   = Memory::Get()->GetVulkan();
+    g_ImGui    = Memory::Get()->GetImGui();
+    g_Console  = Memory::Get()->GetConsole();
+    g_Style    = Memory::Get()->GetStyleEditor();
+    g_MenuBar  = Memory::Get()->GetMenuBar();
 
-    g_Vulkan  = Memory::Get()->GetVulkan();        // VkDevice, queues, swapchain
-    g_ImGui   = Memory::Get()->GetImGui();          // ImGuiContext + backends
-    g_Console = Memory::Get()->GetConsole();        // console ImGui wide-char
-    g_Style   = Memory::Get()->GetStyleEditor();    // editor de estilo + JSON
-    g_Settings = Memory::Get()->GetAppSettings(); // valores default do construtor
-    LoadConfig();                   // sobrescreve com dados do disco, se existirem
-    g_MenuBar =  Memory::Get()->GetMenuBar();
-    // ---- 2. Validação dos aliases -----------------------------------------
-    // Se qualquer ponteiro for nulo, AllocAll() falhou silenciosamente ou
-    // AllocGlobals() foi chamado antes de AllocAll() — ambos são bugs.
+    g_Settings = Memory::Get()->GetAppSettings();
 
+    // ---- 2. Validação ---------------------------------------------------
     if(!g_Vulkan)
-        return MR_MSGBOX_ERR_END_LOC(
-            "g_Vulkan nulo após AllocAll. "
-            "Certifique-se de que Memory::AllocAll() foi chamado antes de AllocGlobals().");
-
+        return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo após AllocAll.");
     if(!g_ImGui)
-        return MR_MSGBOX_ERR_END_LOC(
-            "g_ImGui nulo após AllocAll. "
-            "AllocVulkan() deve preceder AllocImGui() — verifique a ordem em Memory::AllocAll().");
-
+        return MR_MSGBOX_ERR_END_LOC("g_ImGui nulo após AllocAll.");
     if(!g_Console)
-        return MR_MSGBOX_ERR_END_LOC(
-            "g_Console nulo após AllocAll. "
-            "AllocConsole() requer GImGui != nullptr — verifique a ordem em Memory::AllocAll().");
-
+        return MR_MSGBOX_ERR_END_LOC("g_Console nulo após AllocAll.");
     if(!g_Style)
-        return MR_MSGBOX_ERR_END_LOC(
-            "g_Style nulo após AllocAll. "
-            "AllocStyleEditor() falhou — verifique Memory::AllocAll().");
-
+        return MR_MSGBOX_ERR_END_LOC("g_Style nulo após AllocAll.");
     if(!g_Settings)
-        return MR_MSGBOX_ERR_END_LOC(
-            "g_Settings nulo após AllocAll. "
-            "AllocAppSettings() falhou — verifique Memory::AllocAll().");
-     if(!g_MenuBar)
-        return MR_MSGBOX_ERR_END_LOC(
-            "g_MenuBar nulo após AllocAll. "
-			"AllocMenuBar() falhou — verifique Memory::AllocAll().");
+        return MR_MSGBOX_ERR_END_LOC("g_Settings nulo após AllocAll.");
+    if(!g_MenuBar)
+        return MR_MSGBOX_ERR_END_LOC("g_MenuBar nulo após AllocAll.");
 
-    // ---- 3. AppSettings — posse de App, delete em Close() -----------------
+    // ---- 3. Carrega configuração do disco --------------------------------
+    // LoadConfig() chama internamente:
+    //   SyncFlagsFromSettings() → g_ShowDemo, g_grafico, etc.
+    //   ApplyStyleToImGui()     → ImGuiStyle (inclui Mica se habilitado)
+    LoadConfig();
 
-    
-
-    // ---- 4. Restaura escala de fonte da sessão anterior -------------------
-    // ImGui lê FontScaleMain no início de cada NewFrame(). Aplicar aqui,
-    // ANTES do primeiro NewFrame(), garante que o primeiro frame já usa o
-    // tamanho salvo — sem "piscar" para 1.0 e depois para o valor real.
-
-    ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
-
-    // ---- 5. MenuBar — posse de App, delete em Close() ---------------------
-
-     // MenuBar::MenuBar() não usa recursos externos
-
-    // ---- 6. Imagens -------------------------------------------------------
-    // AllocImages() usa g_Vulkan->GetDevice() e o command pool criado por
-    // SetupWindow() dentro de Memory::AllocVulkan() — ambos já existem aqui.
-
+    // ---- 4. Imagens (falha não é fatal) ----------------------------------
     if(!MR_IS_OK(AllocImages()))
         return MR_CLS_WARN_LOC("AllocImages falhou — continuando sem imagens.");
 
@@ -315,10 +238,7 @@ MyResult App::AllocGlobals() {
 // =============================================================================
 
 /**
- * @brief Carrega todas as imagens da aplicação (g_Logo, g_IconSettings, etc.).
- *
- * Falhas não são fatais — IsLoaded() retorna false e os helpers Draw() são
- * no-ops. Mude para MR_MSGBOX_ERR_END_LOC se uma imagem for obrigatória.
+ * @brief Carrega as imagens da aplicação. Falhas não são fatais.
  */
 MyResult App::AllocImages() {
     if(!g_Logo.Load("assets/logo.png"))
@@ -328,12 +248,12 @@ MyResult App::AllocImages() {
             g_Logo.GetWidth(), g_Logo.GetHeight());
 
     if(!g_IconSettings.Load("assets/icon_settings.png"))
-        g_Console->AddLog(L"[Aviso] IconSettings nao carregou (assets/icon_settings.png)");
+        g_Console->AddLog(L"[Aviso] IconSettings nao carregou");
     else
         g_Console->AddLog(L"[OK] IconSettings carregado (%dx%d)",
             g_IconSettings.GetWidth(), g_IconSettings.GetHeight());
 
-    return MyResult::ok; // imagens são opcionais — nunca retorna erro aqui
+    return MyResult::ok;
 }
 
 // =============================================================================
@@ -341,78 +261,314 @@ MyResult App::AllocImages() {
 // =============================================================================
 
 /**
- * @brief Executa o ciclo completo de destruição na ordem obrigatória.
+ * @brief Executa o ciclo de destruição na ordem obrigatória.
  *
- * ORDEM (desviar causa crash ou VK_ERROR_DEVICE_LOST):
- *  1. vkDeviceWaitIdle      → GPU termina todos os frames em voo
- *  2. Imagens Unload()      → usa VkDevice — antes de DestroyAll()
- *  3. delete g_MenuBar      → sem dependência de GPU
- *  4. delete g_Settings     → idem
- *  5. Memory::DestroyAll()  → StyleEditor → Console → FontManager → ImGui → Vulkan
- *  6. Anula aliases         → previne acesso a memória liberada
- *  7. SDL_DestroyWindow     → após Vulkan (surface já destruída pelo Memory)
- *  8. SDL_Quit
- *  9. g_App = nullptr       → previne use-after-free
+ * ORDEM:
+ *  1. SaveConfig()          → persiste o estado final (incluindo tema Mica atual)
+ *  2. vkDeviceWaitIdle      → GPU termina todos os frames em voo
+ *  3. Imagens Unload()      → usa VkDevice — antes de DestroyAll()
+ *  4. Anula aliases de App  → g_MenuBar, g_Settings
+ *  5. Memory::DestroyAll()  → destrói todos os subsistemas na ordem inversa
+ *  6. Anula aliases de recurso → g_Style, g_Console, g_ImGui, g_Vulkan
+ *  7. SDL_DestroyWindow + SDL_Quit
+ *  8. g_App = nullptr
  */
 void App::Close() {
-    // ---- 1. GPU idle -------------------------------------------------------
+    // ---- 1. Salva o estado final ----------------------------------------
+    // Captura o tema Mica atual (pode ter sido editado no StyleEditor)
+    // junto com todos os outros campos de AppSettings.
+    SaveConfig();
+
+    // ---- 2. GPU idle -----------------------------------------------------
     if(g_Vulkan && g_Vulkan->GetDevice() != VK_NULL_HANDLE) {
         const VkResult err = vkDeviceWaitIdle(g_Vulkan->GetDevice());
         VulkanContext::CheckVkResult(err);
     }
 
-    // ---- 2. Imagens — ANTES de DestroyAll ----------------------------------
+    // ---- 3. Imagens — ANTES de DestroyAll --------------------------------
     g_Logo.Unload();
     g_IconSettings.Unload();
 
-    // ---- 3 e 4. Objetos com posse em App -----------------------------------
-     g_MenuBar  = nullptr;
-     g_Settings = nullptr;
+    // ---- 4. Anula aliases de posse de App --------------------------------
+    g_MenuBar  = nullptr; // dono é Memory — não fazemos delete
+    g_Settings = nullptr; // idem
 
-    // ---- 5. Memory::DestroyAll — ordem inversa da alocação -----------------
+    // ---- 5. Memory::DestroyAll -------------------------------------------
     Memory::Get()->DestroyAll();
 
-    // ---- 6. Anula aliases — apontam para memória já liberada ---------------
+    // ---- 6. Anula aliases de recurso ------------------------------------
     g_Style   = nullptr;
     g_Console = nullptr;
     g_ImGui   = nullptr;
     g_Vulkan  = nullptr;
 
-    // ---- 7 e 8. SDL --------------------------------------------------------
+    // ---- 7. SDL ----------------------------------------------------------
     if(g_Window) {
-        SDL_DestroyWindow(g_Window); // surface já destruída pelo Memory
+        SDL_DestroyWindow(g_Window); // surface Vulkan já destruída pelo Memory
         g_Window = nullptr;
     }
     SDL_Quit();
 
-    // ---- 9. Anula ponteiro global ------------------------------------------
+    // ---- 8. Anula ponteiro global ----------------------------------------
     g_App = nullptr;
 
     ImPlot::DestroyContext();
 }
 
 // =============================================================================
-// Persistência
+// SaveConfig
 // =============================================================================
 
 /**
- * @brief Serializa *g_Settings para m_ConfigFile via reflect-cpp.
+ * @brief Captura o estado atual e serializa em settings.json.
+ *
+ * SEQUÊNCIA:
+ *  1. SyncFlagsToSettings()  → membros públicos de App → AppSettings::window
+ *  2. SyncStyleFromImGui()   → ImGuiStyle              → AppSettings::style + color + font
+ *                              (captura o estado pós-Mica se Mica estiver ativo)
+ *  3. rfl::json::save()      → grava settings.json com AppSettings completo
+ *                              (inclui AppSettings::mica_theme e use_mica_theme)
  */
 void App::SaveConfig() {
-    if(g_Settings)
-        rfl::json::save(m_ConfigFile, *g_Settings);
+    if(!g_Settings)
+        return; // chamado antes de AllocGlobals() — ignora silenciosamente
+
+    SyncFlagsToSettings(); // flags de App → AppSettings::window
+    SyncStyleFromImGui();  // ImGuiStyle   → AppSettings::style + color + font
+    rfl::json::save(m_ConfigFile, *g_Settings); // serializa tudo
 }
 
+// =============================================================================
+// LoadConfig
+// =============================================================================
+
 /**
- * @brief Carrega m_ConfigFile em *g_Settings.
- * Se o arquivo não existir ou estiver corrompido, mantém os defaults.
+ * @brief Carrega settings.json em *g_Settings e aplica ao estado de App.
+ *
+ * SEQUÊNCIA:
+ *  1. rfl::json::load()        → desserializa settings.json
+ *  2. *g_Settings = carregado  → substitui os defaults dos sub-structs
+ *  3. SyncFlagsFromSettings()  → AppSettings::window → membros públicos de App
+ *  4. ApplyStyleToImGui()      → AppSettings::style + color → ImGuiStyle
+ *                                + MicaTheme::ApplyMicaTheme() se use_mica_theme
+ *
+ * Se o arquivo não existir, g_Settings mantém os defaults (Mica ativo).
  */
 void App::LoadConfig() {
     if(!g_Settings)
         return;
-    auto r = rfl::json::load<AppSettings>(m_ConfigFile);
+
+    auto r = rfl::json::load<AppSettings>(m_ConfigFile); // tenta desserializar
     if(r)
-        *g_Settings = *r;
+        *g_Settings = *r; // substitui defaults pelos valores do disco
+
+    SyncFlagsFromSettings(); // AppSettings::window → membros públicos
+    ApplyStyleToImGui();     // AppSettings → ImGuiStyle (inclui Mica)
+}
+
+// =============================================================================
+// SyncFlagsToSettings
+// =============================================================================
+
+/**
+ * @brief Copia membros públicos de App → AppSettings::window.
+ *
+ * g_Done nunca é persistido (app sempre inicia com g_Done=false).
+ */
+void App::SyncFlagsToSettings() {
+    if(!g_Settings) return;
+
+    WindowSettings& w = g_Settings->window; // referência para encurtar o código
+    w.show_demo                = g_ShowDemo;
+    w.show_style_editor        = g_ShowStyleEd;
+    w.is_fullscreen            = g_IsFullscreen;
+    w.show_graph               = g_grafico;
+    w.viewport_docking         = bViewportDocking;
+    w.implot3d_realtime_plots  = bImPlot3d_DemoRealtimePlots;
+    w.implot3d_quad_plots      = bImPlot3d_DemoQuadPlots;
+    w.implot3d_tick_labels     = bImPlot3d_DemoTickLabels;
+    // show_console é atualizado diretamente via &g_Settings->window.show_console
+}
+
+// =============================================================================
+// SyncFlagsFromSettings
+// =============================================================================
+
+/**
+ * @brief Copia AppSettings::window → membros públicos de App.
+ *
+ * Chamado em LoadConfig() para que o primeiro frame use os valores salvos.
+ */
+void App::SyncFlagsFromSettings() {
+    if(!g_Settings) return;
+
+    const WindowSettings& w = g_Settings->window;
+    g_ShowDemo                  = w.show_demo;
+    g_ShowStyleEd               = w.show_style_editor;
+    g_IsFullscreen              = w.is_fullscreen;
+    g_grafico                   = w.show_graph;
+    bViewportDocking            = w.viewport_docking;
+    bImPlot3d_DemoRealtimePlots = w.implot3d_realtime_plots;
+    bImPlot3d_DemoQuadPlots     = w.implot3d_quad_plots;
+    bImPlot3d_DemoTickLabels    = w.implot3d_tick_labels;
+}
+
+// =============================================================================
+// SyncStyleFromImGui
+// =============================================================================
+
+/**
+ * @brief Captura ImGuiStyle → AppSettings::font + style + color.
+ *
+ * Chamado em SaveConfig(). Quando Mica está ativo, o ImGuiStyle já contém
+ * as cores e dimensões do Mica aplicadas — portanto ColorSettings reflete
+ * o estado real visível ao usuário, não os defaults pré-Mica.
+ */
+void App::SyncStyleFromImGui() {
+    if(!g_Settings) return;
+
+    const ImGuiStyle& s = ImGui::GetStyle(); // leitura do estilo global atual
+    StyleSettings& ss   = g_Settings->style;
+    ColorSettings& cs   = g_Settings->color;
+
+    // ---- Fonte -----------------------------------------------------------
+    g_Settings->font.font_size_base  = s.FontSizeBase;
+    g_Settings->font.font_scale_main = s.FontScaleMain;
+
+    // ---- Arredondamento --------------------------------------------------
+    ss.frame_rounding   = s.FrameRounding;
+    ss.window_rounding  = s.WindowRounding;
+    ss.popup_rounding   = s.PopupRounding;
+    ss.tab_rounding     = s.TabRounding;
+    ss.grab_rounding    = s.GrabRounding;
+    ss.child_rounding   = s.ChildRounding;
+
+    // ---- Bordas ----------------------------------------------------------
+    ss.frame_border_size  = s.FrameBorderSize;
+    ss.window_border_size = s.WindowBorderSize;
+    ss.popup_border_size  = s.PopupBorderSize;
+    ss.child_border_size  = s.ChildBorderSize;
+    ss.tab_border_size    = s.TabBorderSize;
+
+    // ---- Padding e espaçamento -------------------------------------------
+    ss.window_padding_x      = s.WindowPadding.x;
+    ss.window_padding_y      = s.WindowPadding.y;
+    ss.frame_padding_x       = s.FramePadding.x;
+    ss.frame_padding_y       = s.FramePadding.y;
+    ss.item_spacing_x        = s.ItemSpacing.x;
+    ss.item_spacing_y        = s.ItemSpacing.y;
+    ss.item_inner_spacing_x  = s.ItemInnerSpacing.x;
+    ss.item_inner_spacing_y  = s.ItemInnerSpacing.y;
+    ss.touch_extra_padding_x = s.TouchExtraPadding.x;
+    ss.touch_extra_padding_y = s.TouchExtraPadding.y;
+
+    // ---- Escalares -------------------------------------------------------
+    ss.indent_spacing              = s.IndentSpacing;
+    ss.grab_min_size               = s.GrabMinSize;
+    ss.scrollbar_size              = s.ScrollbarSize;
+    ss.alpha                       = s.Alpha;
+    ss.disabled_alpha              = s.DisabledAlpha;
+    ss.curve_tessellation_tol      = s.CurveTessellationTol;
+    ss.circle_tessellation_max_err = s.CircleTessellationMaxError;
+
+    // ---- Anti-aliasing ---------------------------------------------------
+    ss.anti_aliased_fill          = s.AntiAliasedFill;
+    ss.anti_aliased_lines         = s.AntiAliasedLines;
+    ss.anti_aliased_lines_use_tex = s.AntiAliasedLinesUseTex;
+
+    // ---- Cores (ImVec4 → ImGuiColor com name) ---------------------------
+    // O campo name usa ImGui::GetStyleColorName() para que o settings.json
+    // seja auto-documentado: { "name":"WindowBg", "r":0.13, "g":0.13, ... }
+    // em vez do array anônimo anterior: [ 0.13, 0.13, 0.13, 0.78 ]
+    cs.colors.resize(static_cast<std::size_t>(ImGuiCol_COUNT));
+    for(int i = 0; i < ImGuiCol_COUNT; ++i) {
+        ImGuiColor& c  = cs.colors[static_cast<std::size_t>(i)];
+        c.name = ImGui::GetStyleColorName(i); // "Text", "WindowBg", "Button"...
+        c.r    = s.Colors[i].x;              // componente vermelho
+        c.g    = s.Colors[i].y;              // componente verde
+        c.b    = s.Colors[i].z;              // componente azul
+        c.a    = s.Colors[i].w;              // componente alpha
+    }
+}
+
+// =============================================================================
+// ApplyStyleToImGui
+// =============================================================================
+
+/**
+ * @brief Aplica AppSettings ao ImGuiStyle global.
+ *
+ * ORDEM DE APLICAÇÃO:
+ *  1. FontSettings  → FontSizeBase, FontScaleMain
+ *  2. StyleSettings → dimensões (rounding, padding, etc.)
+ *  3. ColorSettings → Colors[] (54 cores)
+ *  4. Se use_mica_theme: MicaTheme::ApplyMicaTheme(mica_theme)
+ *     → sobrescreve cores E dimensões com os valores do Mica.
+ *
+ * O Mica sempre tem a última palavra quando está ativo.
+ * Isso garante que ao carregar um settings.json com use_mica_theme=true,
+ * o visual seja idêntico ao que existia quando foi salvo.
+ */
+void App::ApplyStyleToImGui() {
+    if(!g_Settings) return;
+
+    ImGuiStyle& s           = ImGui::GetStyle(); // estilo global único
+    const StyleSettings& ss = g_Settings->style;
+    const ColorSettings& cs = g_Settings->color;
+
+    // ---- 1. Fonte --------------------------------------------------------
+    s.FontSizeBase           = g_Settings->font.font_size_base;
+    s.FontScaleMain          = g_Settings->font.font_scale_main;
+    s._NextFrameFontSizeBase = s.FontSizeBase; // garante efeito no próximo frame
+
+    // ---- 2. Dimensões ----------------------------------------------------
+    s.FrameRounding  = ss.frame_rounding;
+    s.WindowRounding = ss.window_rounding;
+    s.PopupRounding  = ss.popup_rounding;
+    s.TabRounding    = ss.tab_rounding;
+    s.GrabRounding   = ss.grab_rounding;
+    s.ChildRounding  = ss.child_rounding;
+
+    s.FrameBorderSize  = ss.frame_border_size;
+    s.WindowBorderSize = ss.window_border_size;
+    s.PopupBorderSize  = ss.popup_border_size;
+    s.ChildBorderSize  = ss.child_border_size;
+    s.TabBorderSize    = ss.tab_border_size;
+
+    s.WindowPadding     = ImVec2(ss.window_padding_x,      ss.window_padding_y);
+    s.FramePadding      = ImVec2(ss.frame_padding_x,       ss.frame_padding_y);
+    s.ItemSpacing       = ImVec2(ss.item_spacing_x,        ss.item_spacing_y);
+    s.ItemInnerSpacing  = ImVec2(ss.item_inner_spacing_x,  ss.item_inner_spacing_y);
+    s.TouchExtraPadding = ImVec2(ss.touch_extra_padding_x, ss.touch_extra_padding_y);
+
+    s.IndentSpacing              = ss.indent_spacing;
+    s.GrabMinSize                = ss.grab_min_size;
+    s.ScrollbarSize              = ss.scrollbar_size;
+    s.Alpha                      = ss.alpha;
+    s.DisabledAlpha              = ss.disabled_alpha;
+    s.CurveTessellationTol       = ss.curve_tessellation_tol;
+    s.CircleTessellationMaxError = ss.circle_tessellation_max_err;
+    s.AntiAliasedFill            = ss.anti_aliased_fill;
+    s.AntiAliasedLines           = ss.anti_aliased_lines;
+    s.AntiAliasedLinesUseTex     = ss.anti_aliased_lines_use_tex;
+
+    // ---- 3. Cores (ImGuiColor → ImVec4) ---------------------------------
+    // O campo name é ignorado aqui — o índice do vetor determina o slot.
+    // Iteramos até min(size, ImGuiCol_COUNT) para ser seguro contra JSONs
+    // de versões diferentes do ImGui com número distinto de cores.
+    const std::size_t n = std::min(
+        cs.colors.size(),
+        static_cast<std::size_t>(ImGuiCol_COUNT));
+    for(std::size_t i = 0; i < n; ++i) {
+        const ImGuiColor& c = cs.colors[i]; // name é descartado na leitura
+        s.Colors[static_cast<int>(i)] = ImVec4(c.r, c.g, c.b, c.a);
+    }
+
+    // ---- 4. Mica (opcional) — SEMPRE por último -------------------------
+    // Sobrescreve cores e dimensões com os valores do ThemeConfig salvo.
+    // Quando false, o usuário controla tudo via StyleEditor.
+    if(g_Settings->use_mica_theme)
+        MicaTheme::ApplyMicaTheme(g_Settings->mica_theme); // usa ImGui::GetStyle()
 }
 
 // =============================================================================
@@ -421,52 +577,39 @@ void App::LoadConfig() {
 
 /**
  * @brief Obtém a resolução do desktop via Win32.
- *
- * GetDesktopWindow() + GetWindowRect() retorna as dimensões do monitor
- * primário em pixels físicos — independente de escala DPI do Windows.
  */
 MyResult App::GetDesktopResolution(int& horizontal, int& vertical) {
     RECT desktop;
-    const HWND hDesktop = GetDesktopWindow(); // handle para o desktop do Windows
-    GetWindowRect(hDesktop, &desktop);         // preenche desktop.right e .bottom
-    horizontal = desktop.right;                // largura em pixels
-    vertical   = desktop.bottom;               // altura em pixels
+    const HWND hDesktop = GetDesktopWindow();  // handle para o desktop Win32
+    GetWindowRect(hDesktop, &desktop);          // preenche .right e .bottom
+    horizontal = desktop.right;                 // largura em pixels físicos
+    vertical   = desktop.bottom;               // altura em pixels físicos
     return MR_OK;
 }
 
 // =============================================================================
 // RegisterCommands
 // =============================================================================
+
 /**
- *
- * Chamado após AllocGlobals() — g_Console e g_Vulkan já estão válidos.
+ * @brief Registra todos os comandos do Console. Chamado após AllocGlobals().
  */
 MyResult App::RegisterCommands() {
-    if(!g_Console)
-        return MR_MSGBOX_ERR_END_LOC("g_Console nulo em RegisterCommands.");
-    if(!g_Vulkan)
-        return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo em RegisterCommands.");
+    if(!g_Console) return MR_MSGBOX_ERR_END_LOC("g_Console nulo.");
+    if(!g_Vulkan)  return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo.");
 
-    auto cmd_quit = [this]() {
-        g_Console->AddLog(L"Saindo...");
-        g_Done = true;
-    };
+    auto cmd_quit = [this]() { g_Console->AddLog(L"Saindo..."); g_Done = true; };
     g_Console->RegisterBuiltIn(L"EXIT", cmd_quit);
     g_Console->RegisterCommand(L"QUIT", cmd_quit);
 
     g_Console->RegisterCommand(L"BREAK", L"USAR SOMENTE EM DEBUG",
-        [this]() { 
-        if(IsDebuggerPresent()) {
-            __debugbreak();
-        } else {
-			g_Console->AddLog(L"[AVISO] BREAK chamado, mas nenhum depurador detectado. Ignorando.");
-        }
-    }  );
-
-    g_Console->RegisterCommand(L"SPECS", L"Exibe as especificacoes de hardware do PC.",
         [this]() {
-            SystemInfo::Collect(g_Vulkan, L"Vulkan").PrintToConsole(g_Console);
+            if(IsDebuggerPresent()) __debugbreak();
+            else g_Console->AddLog(L"[AVISO] Nenhum depurador detectado.");
         });
+
+    g_Console->RegisterCommand(L"SPECS", L"Exibe especificacoes de hardware.",
+        [this]() { SystemInfo::Collect(g_Vulkan, L"Vulkan").PrintToConsole(g_Console); });
 
     g_Console->RegisterCommand(L"VSYNC", L"Liga ou desliga o VSync.",
         [this]() {
@@ -478,34 +621,43 @@ MyResult App::RegisterCommands() {
     g_Console->RegisterCommand(L"NOVIEWPORTS",
         L"Desabilita os viewports flutuantes do ImGui.",
         [this]() {
-            this->DisableViewportDocking();
-            if(bViewportDocking) bViewportDocking = !bViewportDocking;
+            DisableViewportDocking();
+            if(bViewportDocking) bViewportDocking = false;
         });
 
-    g_Console->RegisterCommand(L"forceexit",
-        L"FORÇA o encerramento imediato do programa (sem cleanup).",
-        []() {
-            g_App->g_Console->AddLog(L"FORCE EXIT: Encerrando imediatamente...");
-            std::exit(0);
+    g_Console->RegisterCommand(L"FONTRESET",
+        L"Restaura o tamanho original da fonte.",
+        [this]() { FontScale::ResetToDefault(); SaveConfig(); });
+
+    // Ativa o tema Mica e persiste
+    g_Console->RegisterCommand(L"MICA",
+        L"Ativa o tema Windows 11 Mica.",
+        [this]() {
+            g_Settings->use_mica_theme = true;
+            MicaTheme::ApplyMicaTheme(g_Settings->mica_theme);
+            SaveConfig();
+            g_Console->AddLog(L"Tema Mica ativado.");
         });
 
-    g_Console->RegisterCommand(L"implot", L"Mostra funcionalidades do ImPlot",
-        []() { ImPlot::ShowDemoWindow(); });
+    // Desativa o tema Mica (usa style+color puros)
+    g_Console->RegisterCommand(L"NOMICA",
+        L"Desativa o tema Mica (usa estilo customizado).",
+        [this]() {
+            g_Settings->use_mica_theme = false;
+            ApplyStyleToImGui(); // reaplicação sem Mica
+            SaveConfig();
+            g_Console->AddLog(L"Tema Mica desativado.");
+        });
 
-         g_Console->RegisterCommand(L"implot3d", L"Mostra funcionalidades do ImPlot3d",
-        []() { });
+    g_Console->RegisterCommand(L"forceexit", L"Encerra imediatamente sem cleanup.",
+        []() { g_App->g_Console->AddLog(L"FORCE EXIT"); std::exit(0); });
 
-    g_Console->RegisterCommand(L"Abort",
-        L"Aborta o programa com falha (útil para testar handlers de crash)",
-        []() { std::abort(); });
+    g_Console->RegisterCommand(L"implot",   L"Mostra ImPlot demo.",  []() { ImPlot::ShowDemoWindow(); });
+    g_Console->RegisterCommand(L"implot3d", L"Mostra ImPlot3D demo.", []() { });
 
-    g_Console->RegisterCommand(L"System Pause",
-        L"Pausa o sistema atraves do Windows (útil para depuração)",
-        []() { std::system("pause"); });
-
-    g_Console->RegisterCommand(L"Cpp Pause",
-        L"Pausa o sistema atraves do C++ (útil para depuração)",
-        []() { std::cin.get(); });
+    g_Console->RegisterCommand(L"Abort",  L"Aborta o programa.",           []() { std::abort(); });
+    g_Console->RegisterCommand(L"System Pause", L"Pausa via Windows.",     []() { std::system("pause"); });
+    g_Console->RegisterCommand(L"Cpp Pause",    L"Pausa via C++.",          []() { std::cin.get(); });
 
     return MyResult::ok;
 }
@@ -518,26 +670,22 @@ MyResult App::RegisterCommands() {
  * @brief Loop SDL + ImGui + Vulkan — roda até g_Done == true.
  */
 MyResult App::MainLoop() {
-    g_io = &g_ImGui->GetIO();
+    g_io = &g_ImGui->GetIO(); // referência ao ImGuiIO para acesso rápido no loop
 
     const bool font_rt = (g_io->Fonts && g_io->Fonts->FontLoader);
-    g_Console->AddLog(font_rt
-        ? L"\n[RT] FontLoader ativo\n"
-        : L"[RT] FontLoader: stb_truetype (padrao)\n");
+    g_Console->AddLog(font_rt ? L"\n[RT] FontLoader ativo\n" : L"[RT] stb_truetype\n");
 
-    float* color_ptr = g_Settings->clear_color.data();
+    float* color_ptr = g_Settings->clear_color.data(); // ponteiro para cor de fundo
     g_color_ptr      = color_ptr;
     g_window_opacity = 1.0f;
-
-    static ScrollingBuffer sdata = ScrollingBuffer::ScrollingBuffer();
-    float t = 0;
 
     while(!g_Done) {
 
         // ---- 1. Eventos SDL -----------------------------------------------
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
-            ImGui_ImplSDL3_ProcessEvent(&event);
+            FontScale::ProcessEvent(event);      // Ctrl+Scroll → zoom de fonte
+            ImGui_ImplSDL3_ProcessEvent(&event); // repassa ao ImGui
 
             if(event.type == SDL_EVENT_QUIT)
                 g_Done = true;
@@ -549,42 +697,41 @@ MyResult App::MainLoop() {
             if(event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F11) {
                 g_IsFullscreen = !g_IsFullscreen;
                 SDL_SetWindowFullscreen(g_Window, g_IsFullscreen);
+                SaveConfig(); // persiste o novo estado de fullscreen
             }
         }
 
         if(SDL_GetWindowFlags(g_Window) & SDL_WINDOW_MINIMIZED) {
-            SDL_Delay(10);
+            SDL_Delay(10); // cede CPU quando minimizada
             continue;
         }
 
-        // ---- 2. Rebuild da swapchain --------------------------------------
+        // ---- 2. Rebuild da swapchain se necessário -----------------------
         int fb_w, fb_h;
         SDL_GetWindowSize(g_Window, &fb_w, &fb_h);
         ImGui_ImplVulkanH_Window* wd = g_Vulkan->GetMainWindowData();
-
         if(fb_w > 0 && fb_h > 0 &&
            (g_Vulkan->NeedsSwapChainRebuild() ||
             wd->Width != fb_w || wd->Height != fb_h))
             g_Vulkan->RebuildSwapChain(fb_w, fb_h);
 
-        // ---- 3. Frame ImGui -----------------------------------------------
+        // ---- 3. Conteúdo ImGui do frame ----------------------------------
         Windows();
 
-        // ---- 4. Render Vulkan ---------------------------------------------
+        // ---- 4. Render Vulkan --------------------------------------------
         g_ImGui->Render();
-
         ImDrawData* draw_data = ImGui::GetDrawData();
         const bool minimized = (draw_data->DisplaySize.x <= 0.0f ||
                                  draw_data->DisplaySize.y <= 0.0f);
 
-        wd->ClearValue.color.float32[0] = color_ptr[0] * color_ptr[3];
-        wd->ClearValue.color.float32[1] = color_ptr[1] * color_ptr[3];
-        wd->ClearValue.color.float32[2] = color_ptr[2] * color_ptr[3];
-        wd->ClearValue.color.float32[3] = color_ptr[3];
+        wd->ClearValue.color.float32[0] = color_ptr[0] * color_ptr[3]; // R pré-mult
+        wd->ClearValue.color.float32[1] = color_ptr[1] * color_ptr[3]; // G pré-mult
+        wd->ClearValue.color.float32[2] = color_ptr[2] * color_ptr[3]; // B pré-mult
+        wd->ClearValue.color.float32[3] = color_ptr[3];                 // A
 
-        if(!minimized)   g_Vulkan->FrameRender(draw_data);
+        if(!minimized)                g_Vulkan->FrameRender(draw_data);
         if(g_ImGui->WantsViewports()) g_ImGui->RenderPlatformWindows();
-        if(!minimized)   g_Vulkan->FramePresent();
+        if(!minimized)                g_Vulkan->FramePresent();
     }
 
     return MyResult::ok;
@@ -597,11 +744,11 @@ MyResult App::MainLoop() {
 /**
  * @brief Renderiza todas as janelas ImGui do frame atual.
  *
- * Chamado por MainLoop() a cada frame, após o rebuild do swapchain e
- * antes do Render(). g_ImGui->NewFrame() é chamado aqui.
+ * Qualquer alteração que deva ser persistida chama SaveConfig() imediatamente
+ * no handler do widget — garante que nem um ALT+F4 perde o estado.
  */
 MyResult App::Windows() {
-    WindowsConsole::poll_hotkey();
+     WindowsConsole::poll_hotkey();
 
     g_ImGui->NewFrame();
 
@@ -610,23 +757,22 @@ MyResult App::Windows() {
     if(g_ShowDemo)
         ImGui::ShowDemoWindow(&g_ShowDemo);
 
-    {
-        ImGui::Begin("Window Controls");
+    
+        ImGui::Begin("Window Controls", &g_Settings->window.show_window_controls);
 
+        // ---- Botão fechar ------------------------------------------------
         const float btn_w   = 60.0f;
         const float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::SetCursorPosX(ImGui::GetWindowWidth() - btn_w - padding);
-        if(ImGui::Button("❌", ImVec2(btn_w, 0)))
-            g_Done = true;
-        if(ImGui::IsItemHovered())
-            ImGui::SetTooltip("Fechar o programa");
+        if(ImGui::Button("❌", ImVec2(btn_w, 0))) g_Done = true;
+        if(ImGui::IsItemHovered()) ImGui::SetTooltip("Fechar o programa");
 
         ImGui::SameLine();
         ImGui::Text("Global Alpha Blending");
 
+        // ---- Opacidade da janela (não persistida) -----------------------
         if(ImGui::SliderFloat("Window Opacity", &g_window_opacity, 0.1f, 1.0f))
             SDL_SetWindowOpacity(g_Window, g_window_opacity);
-
         if(ImGui::Button("Reset to Opaque")) {
             g_window_opacity = 1.0f;
             SDL_SetWindowOpacity(g_Window, 1.0f);
@@ -634,21 +780,37 @@ MyResult App::Windows() {
 
         ImGui::Separator();
 
+        // ---- Cor de fundo — persistida ----------------------------------
         if(ImGui::ColorEdit3("Background Color", g_color_ptr))
             SaveConfig();
 
-        // ---- Escala de fonte — persistida entre sessões -------------------
-        // io.FontGlobalScale multiplica o tamanho de todas as fontes em
-        // runtime sem reconstruir o atlas. Efeito imediato no próximo NewFrame().
-        ImGui::Separator();
-        if(ImGui::SliderFloat("Font Scale", &g_Settings->font_scale,
-            0.5f, 3.0f, "%.2f")) {
-            ImGui::GetStyle().FontScaleMain = g_Settings->font_scale;
+        // ---- Tema Mica — toggle persistido ------------------------------
+        if(ImGui::Checkbox("Windows 11 Mica Theme", &g_Settings->use_mica_theme)) {
+            ApplyStyleToImGui(); // reaplicação imediata (com ou sem Mica)
             SaveConfig();
         }
+
+        ImGui::Separator();
+
+        // ---- Fonte — font_scale_main (multiplicador) -------------------
+        if(ImGui::SliderFloat("Font Scale",
+            &g_Settings->font.font_scale_main, 0.5f, 3.0f, "%.2f")) {
+            ImGui::GetStyle().FontScaleMain = g_Settings->font.font_scale_main;
+            SaveConfig();
+        }
+
+        // ---- Fonte — font_size_base (pixels absolutos) -----------------
+        if(ImGui::SliderFloat("Font Size Base",
+            &g_Settings->font.font_size_base,
+            FontScale::FONT_SIZE_MIN, FontScale::FONT_SIZE_MAX, "%.1f px")) {
+            FontScale::SetSize(g_Settings->font.font_size_base);
+            SaveConfig();
+        }
+
         if(ImGui::Button("Reset Font")) {
-            g_Settings->font_scale       = 1.0f;
-            ImGui::GetStyle().FontScaleMain = 1.0f;
+            FontScale::ResetToDefault();
+            g_Settings->font.font_scale_main = 1.0f;
+            ImGui::GetStyle().FontScaleMain  = 1.0f;
             SaveConfig();
         }
 
@@ -658,11 +820,13 @@ MyResult App::Windows() {
         ImGui::Separator();
         WindowsConsole::render_imgui_button();
 
-        if(ImGui::Checkbox("Show ImGui Console", &g_Settings->show_console))
+        // ---- Visibilidade do console ------------------------------------
+        if(ImGui::Checkbox("Show ImGui Console", &g_Settings->window.show_console))
             SaveConfig();
 
-        ImGui::Checkbox("Demo Window",    &g_ShowDemo);
-        ImGui::Checkbox("Style Editor",   &g_ShowStyleEd);
+        // ---- Flags de janelas — todas persistidas -----------------------
+        if(ImGui::Checkbox("Demo Window",  &g_ShowDemo))    SaveConfig();
+        if(ImGui::Checkbox("Style Editor", &g_ShowStyleEd)) SaveConfig();
 
         if(ImGui::Button("Log Test msg"))
             g_Console->AddLog(L"Botao pressionado no frame %d \U0001F680",
@@ -682,25 +846,36 @@ MyResult App::Windows() {
             ImGui::Text("Configuracoes");
         }
 
-        ImGui::Checkbox("grafico",    &g_grafico);
-        ImGui::Checkbox("Viewports",  &bViewportDocking);
-		ImGui::Checkbox("ImPlot3D Demo RealtimePlots", &bImPlot3d_DemoRealtimePlots);
-		ImGui::Checkbox("ImPlot3D Demo QuadPlots", &bImPlot3d_DemoQuadPlots);
-		ImGui::Checkbox("ImPlot3D Demo TickLabels", &bImPlot3d_DemoTickLabels);
+        // ---- ImPlot3D demos — todos persistidos -------------------------
+        if(ImGui::Checkbox("grafico",                     &g_grafico))                    SaveConfig();
+        if(ImGui::Checkbox("Viewports",                   &bViewportDocking))             SaveConfig();
+        if(ImGui::Checkbox("ImPlot3D RealtimePlots",      &bImPlot3d_DemoRealtimePlots))  SaveConfig();
+        if(ImGui::Checkbox("ImPlot3D QuadPlots",          &bImPlot3d_DemoQuadPlots))      SaveConfig();
+        if(ImGui::Checkbox("ImPlot3D TickLabels",         &bImPlot3d_DemoTickLabels))     SaveConfig();
+
         ImGui::End();
+    
+
+    // ---- Console ImGui interno ------------------------------------------
+    if(g_Settings->window.show_console) {
+        g_Console->Draw(L"Debug Console", &g_Settings->window.show_console);
+        if(!g_Settings->window.show_console) SaveConfig(); // persiste ao fechar
     }
 
-    if(g_Settings->show_console) {
-        g_Console->Draw(L"Debug Console", &g_Settings->show_console);
-        if(!g_Settings->show_console) SaveConfig();
-    }
-
+    // ---- Style Editor ---------------------------------------------------
     if(g_ShowStyleEd)
         g_Style->Show(nullptr, &g_ShowStyleEd);
 
-    if(bViewportDocking)
-        bViewportDocking = !bViewportDocking;
+    // Detecta transição open→closed para salvar uma última vez
+    {
+        static bool s_style_was_open = false;
+        if(s_style_was_open && !g_ShowStyleEd) SaveConfig(); // fechou — salva
+        s_style_was_open = g_ShowStyleEd;
+    }
 
+    if(bViewportDocking) bViewportDocking = !bViewportDocking;
+
+    // ---- Gráfico de exemplo ---------------------------------------------
     if(g_grafico) {
         ImGui::Begin("Grafico de Exemplo", &g_grafico);
         if(ImPlot::BeginPlot("Gráfico de Exemplo")) {
@@ -709,38 +884,74 @@ MyResult App::Windows() {
             static float y_data[10] = {1,3,2,4,5,3,6,5,7,8};
             ImPlot::PlotLine("Sinal A", x_data, y_data, 10);
             ImPlot::PlotLineG("Cosseno",
-                [](int idx, void*) {
-                    const float x = idx * 0.1f;
-                    return ImPlotPoint(x, cosf(x));
-                }, nullptr, 100);
+                [](int idx, void*) { return ImPlotPoint(idx * 0.1f, cosf(idx * 0.1f)); },
+                nullptr, 100);
             ImPlot::EndPlot();
             ImGui::End();
         }
     }
 
-    if(bImPlot3d_DemoRealtimePlots){
-		ImGui::Begin("ImPlot3D Demo RealtimePlots", &bImPlot3d_DemoRealtimePlots);
-    ImPlot3D::CreateContext();
-    ImPlot3D::DemoRealtimePlots();
-    ImPlot3D::DestroyContext();
-    ImGui::End();
+    // ---- ImPlot3D demos -------------------------------------------------
+    if(bImPlot3d_DemoRealtimePlots) {
+        ImGui::Begin("ImPlot3D Demo RealtimePlots", &bImPlot3d_DemoRealtimePlots);
+        ImPlot3D::CreateContext(); ImPlot3D::DemoRealtimePlots(); ImPlot3D::DestroyContext();
+        ImGui::End();
     }
-    
-    if(bImPlot3d_DemoQuadPlots){
-		ImGui::Begin("ImPlot3D Demo QuadPlots", &bImPlot3d_DemoQuadPlots);
-    ImPlot3D::CreateContext();
-    ImPlot3D::DemoQuadPlots();
-    ImPlot3D::DestroyContext();
-    ImGui::End();
+    if(bImPlot3d_DemoQuadPlots) {
+        ImGui::Begin("ImPlot3D Demo QuadPlots", &bImPlot3d_DemoQuadPlots);
+        ImPlot3D::CreateContext(); ImPlot3D::DemoQuadPlots(); ImPlot3D::DestroyContext();
+        ImGui::End();
+    }
+    if(bImPlot3d_DemoTickLabels) {
+        ImGui::Begin("ImPlot3D Demo TickLabels", &bImPlot3d_DemoTickLabels);
+        ImPlot3D::CreateContext(); ImPlot3D::DemoTickLabels(); ImPlot3D::DestroyContext();
+        ImGui::End();
     }
 
-    if(bImPlot3d_DemoTickLabels){
-		ImGui::Begin("ImPlot3D Demo TickLabels", &bImPlot3d_DemoTickLabels);
-    ImPlot3D::CreateContext();
-    ImPlot3D::DemoTickLabels();
-    ImPlot3D::DestroyContext();
-    ImGui::End();
-    }
+    g_Console->RegisterCommand(
+    L"theme",
+    L"Muda o tema da aplicação. Uso: theme [dark|light|clear]",
+    [this](std::vector<std::wstring> args)
+    {
+        // args vazio → usuário digitou apenas "theme" sem subcomando
+        if (args.empty())
+        {
+            g_Console->AddLog(L"[yellow]Uso:[/] theme [dark|light|clear]");
+            return; // nada mais a fazer sem argumento
+        }
+
+        // Converte o primeiro argumento para uppercase para comparação
+        // case-insensitive — ex.: L"Dark" e L"DARK" são equivalentes.
+        std::wstring sub = args[0]; // cópia do primeiro argumento
+        std::transform(
+            sub.begin(), sub.end(), // intervalo de entrada
+            sub.begin(),            // intervalo de saída (in-place)
+            [](const wchar_t c) {
+                return static_cast<wchar_t>(towupper(c)); // uppercase largo
+            });
+
+        if (sub == L"DARK")
+        {
+            ImGui::StyleColorsDark();                        // aplica tema escuro do ImGui
+            g_Console->AddLog(L"[cyan]Tema:[/] dark aplicado.");
+        }
+        else if (sub == L"LIGHT")
+        {
+            ImGui::StyleColorsLight();                       // aplica tema claro do ImGui
+            g_Console->AddLog(L"[cyan]Tema:[/] light aplicado.");
+        }
+        else if (sub == L"CLEAR" || sub == L"CLASSIC")
+        {
+            ImGui::StyleColorsClassic();                     // aplica tema clássico do ImGui
+            g_Console->AddLog(L"[cyan]Tema:[/] classic aplicado.");
+        }
+        else
+        {
+            // argumento não reconhecido — informa o usuário sem encerrar
+            g_Console->AddLog(L"[error]Subcomando desconhecido:[/] '%ls'", args[0].c_str());
+            g_Console->AddLog(L"[yellow]Uso:[/] theme [dark|light|clear]");
+        }
+    });
 
     return MR_OK;
 }
@@ -749,13 +960,14 @@ MyResult App::Windows() {
 // DisableViewportDocking
 // =============================================================================
 
+/**
+ * @brief Desativa viewports flutuantes e reposiciona janelas dentro da área principal.
+ */
 void App::DisableViewportDocking() {
     g_io->ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
-
-    ImGuiContext* ctx       = ImGui::GetCurrentContext();
-    ImVec2 main_pos         = ImGui::GetMainViewport()->Pos;
-    ImVec2 main_size        = ImGui::GetMainViewport()->Size;
-
+    ImGuiContext* ctx = ImGui::GetCurrentContext();
+    ImVec2 main_pos   = ImGui::GetMainViewport()->Pos;
+    ImVec2 main_size  = ImGui::GetMainViewport()->Size;
     for(ImGuiWindow* win : ctx->Windows) {
         if(!win || win->Hidden) continue;
         float max_x = main_pos.x + main_size.x - win->Size.x;
@@ -763,7 +975,6 @@ void App::DisableViewportDocking() {
         win->Pos.x  = ImClamp(win->Pos.x, main_pos.x, ImMax(main_pos.x, max_x));
         win->Pos.y  = ImClamp(win->Pos.y, main_pos.y, ImMax(main_pos.y, max_y));
     }
-
     g_App->g_Console->AddLog(L"Viewports desabilitados — janelas reposicionadas.");
 }
 
@@ -776,22 +987,22 @@ ScrollingBuffer::ScrollingBuffer()
 
 ScrollingBuffer::ScrollingBuffer(int max_size)
     : ScrollingBuffer() {
-    MaxSize = max_size;
-    Data.reserve(MaxSize);
+    MaxSize = max_size;     // substitui o default 2000
+    Data.reserve(MaxSize);  // pré-aloca para evitar realocações
 }
 
 void ScrollingBuffer::AddPoint(float x, float y) {
     if(Data.size() < MaxSize)
-        Data.push_back(ImVec2(x, y));
+        Data.push_back(ImVec2(x, y));     // buffer ainda não cheio — append
     else {
-        Data[Offset] = ImVec2(x, y);
-        Offset = (Offset + 1) % MaxSize;
+        Data[Offset] = ImVec2(x, y);      // buffer cheio — sobrescreve o mais antigo
+        Offset = (Offset + 1) % MaxSize;  // avança o ponteiro ciclicamente
     }
 }
 
 void ScrollingBuffer::Erase() {
     if(Data.size() > 0) {
-        Data.shrink(0);
-        Offset = 0;
+        Data.shrink(0); // libera a memória interna do ImVector
+        Offset = 0;     // reseta o índice de escrita
     }
 }

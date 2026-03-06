@@ -26,6 +26,7 @@
 #include "MenuBar.hpp"
 #include "App.hpp"       // ← traz extern App* g_App e os membros públicos de App
 #include "Console.hpp"   // ← para g_App->g_Console->AddLog()
+#include "Memory.hpp"
 
 // =============================================================================
 // Construtor
@@ -37,7 +38,11 @@
  */
 MenuBar::MenuBar()
     : m_ShowAbout(false)
-{}
+{
+
+        g_Settings = Memory::Get()->GetAppSettings();
+
+}
 
 // =============================================================================
 // Draw
@@ -131,7 +136,8 @@ void MenuBar::DrawMenuView() {
     if(ImGui::BeginMenu("View")) {
 
         // &g_App->g_Settings->show_console = ponteiro para o campo do AppSettings
-        ImGui::MenuItem("Console",      nullptr, &g_App->g_Settings->show_console);
+        ImGui::MenuItem("Window Controls",      nullptr, &g_Settings->window.show_window_controls);
+        ImGui::MenuItem("Console",      nullptr, g_App->g_Settings->window.show_console);
         ImGui::MenuItem("Style Editor", nullptr, &g_App->g_ShowStyleEd);
         ImGui::MenuItem("Demo Window",  nullptr, &g_App->g_ShowDemo);
 

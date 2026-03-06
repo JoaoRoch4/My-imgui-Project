@@ -33,6 +33,9 @@ public:
 
 private:
 
+    class AppSettings* g_Settings; ///< Configurações persistidas — dono: Memory singleton
+
+
     bool m_ShowAbout; ///< Flag interna: true = abrir popup "Sobre" neste frame
 
     void DrawMenuFile();            ///< File  > New | Open | Exit

@@ -253,7 +253,7 @@ static ImFont* AddEmojiMerge(ImGuiIO& io,
     cfg.OversampleH = 1;     // 1x is sufficient for emoji; saves atlas memory
     cfg.OversampleV = 1;
     cfg.GlyphOffset.y = 1.0f;  // nudge 1px down to align emoji baseline with text
-
+    cfg.FontLoaderFlags  = ImGuiFreeTypeLoaderFlags_LoadColor;
     return io.Fonts->AddFontFromFileTTF(
         emoji_path.c_str(),
         size,
