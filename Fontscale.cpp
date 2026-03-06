@@ -1,127 +1,128 @@
 /**
  * @file FontScale.cpp
- * @brief Zoom de fonte global no ImGui via Ctrl + Scroll do mouse.
+ * @brief Zoom de fonte global via Ctrl+Scroll, com supressão por janela.
  *
- * COMO O ZOOM DE FONTE FUNCIONA NO IMGUI MODERNO
- * -----------------------------------------------
- * O ImGui tem dois parâmetros que controlam o tamanho visual do texto:
+ * MECANISMO DE SUPRESSÃO (lag de 1 frame, imperceptível)
+ * -------------------------------------------------------
  *
- *  ImGuiStyle::FontSizeBase   (float, pixels)
- *    → O tamanho "base" da fonte.  O ImGui multiplica este valor por
- *      FontScaleMain e FontScaleDpi para obter o tamanho final em cada frame.
- *    → Alterar FontSizeBase em runtime NÃO reconstrói o atlas de texturas.
- *      O ImGui re-rasteriza a fonte usando o FontLoader (FreeType ou stb_truetype)
- *      dentro do próprio NewFrame(), de forma transparente.
- *    → É a API recomendada para zoom dinâmico desde que o backend suporte
- *      ImGuiBackendFlags_RendererHasTextures (o backend Vulkan/ImGui suporta).
+ *   Frame N — Console em foco, usuário faz Ctrl+Scroll:
+ *     1. SDL_PollEvent → ProcessEvent():
+ *           s_suppressed ainda é FALSE (Console não avisou ainda)
+ *           → aplica zoom global (comportamento indesejado no Frame N)
+ *     2. Console::Draw():
+ *           IsWindowHovered() = true
+ *           → SetScrollSuppressed(true)   ← avisa para o Frame N+1
+ *           → aplica zoom local do console via io.MouseWheel
  *
- *  ImGuiStyle::FontScaleMain  (float, multiplicador)
- *    → Fator de escala aplicado sobre FontSizeBase.  1.0 = sem escala.
- *    → Menos indicado para zoom do usuário porque afeta cálculos de layout.
+ *   Frame N+1 — Console em foco, usuário faz Ctrl+Scroll:
+ *     1. SDL_PollEvent → ProcessEvent():
+ *           s_suppressed = TRUE           ← desta vez pula o zoom global ✓
+ *     2. Console::Draw():
+ *           → aplica zoom local do console
+ *           → mantém SetScrollSuppressed(true)
  *
- * POR QUE NÃO RECARREGAR O ATLAS?
- * ---------------------------------
- * A abordagem antiga era:
- *   io.Fonts->Clear() → AddFontFromFileTTF(novo_tamanho) → Build() → upload GPU
- * Isso exige sincronização com o frame Vulkan e é frágil.
- * Com FontSizeBase + FontLoader ativo, o ImGui cuida de tudo internamente.
- *
- * DETECÇÃO DO CTRL+SCROLL
- * -----------------------
- * SDL3 entrega scroll como SDL_EVENT_MOUSE_WHEEL com campo y (float):
- *   y > 0 → scroll para cima    → aumenta fonte
- *   y < 0 → scroll para baixo   → diminui fonte
- *
- * O estado do Ctrl é lido via SDL_GetModState() no momento do evento:
- *   SDL_KMOD_CTRL  cobre tanto Ctrl esquerdo quanto direito.
- *
- * NÃO usamos io.KeyCtrl do ImGui porque ProcessEvent() pode ser chamado
- * antes de ImGui_ImplSDL3_ProcessEvent() processar o frame corrente.
- *
- * INTEGRAÇÃO EM main.cpp
- * ----------------------
- * Dentro do loop SDL_PollEvent, adicione UMA linha:
- * @code
- *   while(SDL_PollEvent(&event)) {
- *       FontScale::ProcessEvent(event);        // ← adicione aqui
- *       ImGui_ImplSDL3_ProcessEvent(&event);
- *       // ... resto do tratamento de eventos
- *   }
- * @endcode
- *
- * Opcionalmente, registre um comando no Console para resetar:
- * @code
- *   con->RegisterCommand(L"FONTRESET",
- *       L"Restaura o tamanho original da fonte (Ctrl+Scroll para zoom).",
- *       []() { FontScale::ResetToDefault(); });
- * @endcode
+ * O Frame N tem comportamento duplo (global + local) apenas no PRIMEIRO
+ * Ctrl+Scroll com o console em foco — imperceptível na prática.
+ * A partir do Frame N+1 o comportamento é exclusivamente local.
  */
 
-#include "pch.hpp"     // Windows.h, SDL3, imgui.h, etc.
+#include "pch.hpp"
 #include "FontScale.hpp"
 
- // ============================================================================
- // Inicialização dos membros estáticos
- // ============================================================================
+// ============================================================================
+// Definição dos membros estáticos
+// ============================================================================
 
-float FontScale::s_default_size = 13.0f; ///< Será sobrescrito na primeira chamada
-bool  FontScale::s_default_set = false; ///< false até ser capturado uma vez
+float FontScale::s_default_size = 13.0f; ///< Sobrescrito na primeira interação
+bool  FontScale::s_default_set  = false; ///< false até ser capturado uma vez
+bool  FontScale::s_suppressed   = false; ///< false = scroll global ativo
+
+// ============================================================================
+// SetScrollSuppressed
+// ============================================================================
+
+/**
+ * @brief Atualiza o flag de supressão de scroll global.
+ *
+ * Deve ser chamado por Console::Draw() uma vez por frame, passando
+ * o resultado de ImGui::IsWindowHovered() para a janela do console.
+ *
+ * @param suppressed  true = console em foco → ProcessEvent() pula Ctrl+Scroll.
+ */
+void FontScale::SetScrollSuppressed(bool suppressed) noexcept
+{
+    s_suppressed = suppressed; // lido por ProcessEvent() no próximo frame
+}
+
+// ============================================================================
+// IsScrollSuppressed
+// ============================================================================
+
+/**
+ * @brief Retorna o estado atual do flag de supressão.
+ *
+ * @return true se o scroll global está suprimido (console em foco).
+ */
+bool FontScale::IsScrollSuppressed() noexcept
+{
+    return s_suppressed; // estado definido por SetScrollSuppressed()
+}
 
 // ============================================================================
 // ProcessEvent
 // ============================================================================
 
 /**
- * @brief Processa um SDL_Event e aplica zoom de fonte se Ctrl+Scroll for detectado.
+ * @brief Processa SDL_EVENT_MOUSE_WHEEL + Ctrl → zoom de fonte global.
  *
- * FLUXO INTERNO:
- *  1. Filtra: apenas SDL_EVENT_MOUSE_WHEEL interessa.
- *  2. Filtra: SDL_GetModState() deve conter SDL_KMOD_CTRL.
- *  3. Na primeira chamada captura ImGuiStyle::FontSizeBase como default.
- *  4. Calcula o novo tamanho: atual ± STEP * |delta_y|.
- *  5. Aplica com SetSize() que valida os limites e escreve em FontSizeBase.
+ * CONDIÇÕES PARA APLICAR:
+ *  1. Evento é SDL_EVENT_MOUSE_WHEEL.
+ *  2. Ctrl está pressionado (SDL_KMOD_CTRL cobre esquerdo e direito).
+ *  3. s_suppressed == false (Console NÃO está em foco).
  *
- * Por que multiplicar STEP por |delta_y| e não só pelo sinal?
- *   Trackpads e mouses de alta resolução entregam deltas fracionários (ex.: 0.25).
- *   Acumular o valor real — e não só +1/-1 — torna o zoom proporcional à
- *   velocidade de rolagem, assim como zoom em browsers e editores de texto.
+ * Quando s_suppressed == true, o evento é ignorado silenciosamente.
+ * Console::Draw() trata o scroll localmente via ImGui::GetIO().MouseWheel.
  *
- * @param event  Evento SDL3 a inspecionar (qualquer tipo; filtramos internamente).
- * @return       true se a fonte foi alterada nesta chamada.
+ * @param event  Evento SDL3 a inspecionar.
+ * @return       true se a fonte global foi alterada; false caso contrário.
  */
-bool FontScale::ProcessEvent(const SDL_Event& event) {
-    // Filtra: só interessa scroll do mouse
+bool FontScale::ProcessEvent(const SDL_Event& event)
+{
+    // Filtra: apenas scroll do mouse interessa
     if(event.type != SDL_EVENT_MOUSE_WHEEL)
-        return false; // Ignora qualquer outro tipo de evento
+        return false; // qualquer outro tipo de evento é ignorado
 
-    // Verifica se Ctrl está pressionado agora via SDL_GetModState()
-    // SDL_KMOD_CTRL = SDL_KMOD_LCTRL | SDL_KMOD_RCTRL (ambos os lados)
+    // Verifica se Ctrl está pressionado via SDL_GetModState()
+    // SDL_KMOD_CTRL = SDL_KMOD_LCTRL | SDL_KMOD_RCTRL
     const SDL_Keymod mod = SDL_GetModState();
     if(!(mod & SDL_KMOD_CTRL))
-        return false; // Scroll sem Ctrl — deixa o ImGui tratar normalmente
+        return false; // scroll sem Ctrl — deixa o ImGui tratar normalmente
 
-    // Captura o tamanho default UMA vez, na primeira interação do usuário
-    // (neste ponto o contexto ImGui já está ativo, FontSizeBase já foi definido)
+    // SUPRESSÃO: se o Console está em foco (flag definido no frame anterior),
+    // pula o zoom global e deixa o Console tratar internamente em Draw().
+    if(s_suppressed)
+        return false; // Console consumirá via ImGui::GetIO().MouseWheel
+
+    // Captura o tamanho default UMA vez (contexto ImGui já ativo neste ponto)
     ImGuiStyle& style = ImGui::GetStyle(); // referência ao estilo global único
-    if(!s_default_set) {
+    if(!s_default_set)
+    {
         s_default_size = style.FontSizeBase; // salva o valor inicial para Reset
-        s_default_set = true;
+        s_default_set  = true;
     }
 
-    // event.wheel.y: positivo = scroll para cima, negativo = para baixo
-    // Usamos o valor float diretamente para suportar trackpads de alta resolução
-    const float delta = event.wheel.y; // float em SDL3 (era int em SDL2)
+    // event.wheel.y: float em SDL3 (era int em SDL2)
+    //   > 0 = scroll para cima   → aumenta fonte
+    //   < 0 = scroll para baixo  → diminui fonte
+    const float delta = event.wheel.y;
 
     if(delta == 0.0f)
-        return false; // Scroll puramente horizontal com Ctrl — ignoramos
+        return false; // scroll puramente horizontal — ignoramos
 
-    // Calcula o novo tamanho: adiciona STEP por unidade de scroll
-    const float current = style.FontSizeBase;           // tamanho atual em pixels
-    const float proposed = current + (STEP * delta);     // proposta: ±1px por tick
+    // Calcula e aplica o novo tamanho; STEP * delta preserva trackpads
+    SetSize(style.FontSizeBase + (STEP * delta));
 
-    SetSize(proposed); // valida os limites e aplica
-
-    return true; // evento foi consumido pelo zoom de fonte
+    return true; // zoom global foi aplicado
 }
 
 // ============================================================================
@@ -129,15 +130,13 @@ bool FontScale::ProcessEvent(const SDL_Event& event) {
 // ============================================================================
 
 /**
- * @brief Retorna o tamanho base atual da fonte em pixels.
+ * @brief Retorna o tamanho base atual da fonte global em pixels.
  *
- * Lê diretamente de ImGuiStyle::FontSizeBase, que é a fonte verdade:
- * qualquer alteração feita por SetSize() ou pelo StyleEditor aparece aqui.
- *
- * @return Tamanho em pixels (ex.: 13.0f, 16.0f, 24.0f).
+ * Lê diretamente de ImGuiStyle::FontSizeBase — fonte da verdade.
  */
-float FontScale::GetCurrentSize() {
-    return ImGui::GetStyle().FontSizeBase; // leitura direta do estilo ImGui
+float FontScale::GetCurrentSize()
+{
+    return ImGui::GetStyle().FontSizeBase; // leitura direta do estilo global
 }
 
 // ============================================================================
@@ -145,36 +144,24 @@ float FontScale::GetCurrentSize() {
 // ============================================================================
 
 /**
- * @brief Define o tamanho base da fonte, respeitando SIZE_MIN e SIZE_MAX.
+ * @brief Define o tamanho base global, clampeado a [FONT_SIZE_MIN, FONT_SIZE_MAX].
  *
- * Escreve em dois lugares sincronizados:
+ * Escreve em FontSizeBase e _NextFrameFontSizeBase para sincronismo
+ * com o próximo frame (mesmo padrão usado pelo StyleEditor).
  *
- *  style.FontSizeBase
- *    → Lido pelo ImGui em NewFrame() para calcular o tamanho final.
- *    → O FontLoader re-rasteriza a fonte automaticamente quando este valor muda,
- *      desde que ImGuiBackendFlags_RendererHasTextures esteja ativo (Vulkan ✓).
- *
- *  style._NextFrameFontSizeBase
- *    → Campo interno que o ImGui usa para aplicar a mudança no PRÓXIMO frame,
- *      evitando inconsistências caso SetSize() seja chamado DURANTE um frame.
- *    → O StyleEditor do projeto também escreve neste campo (veja StyleEditor.cpp:
- *      `if(ImGui::DragFloat("FontSizeBase", ...) style._NextFrameFontSizeBase = ...`).
- *
- * @param px  Tamanho desejado em pixels. Será clampado a [SIZE_MIN, SIZE_MAX].
+ * @param px  Tamanho desejado em pixels; será clampeado.
  */
-void FontScale::SetSize(float px) {
-    // Clamp: garante que a fonte nunca sai do intervalo seguro
-    // SIZE_MIN=8 evita fonte invisível; SIZE_MAX=48 evita UI inutilizável
+void FontScale::SetSize(float px)
+{
+    // Clamp: FONT_SIZE_MIN=8 evita fonte invisível; FONT_SIZE_MAX=48 evita UI inutilizável
     const float clamped = (px < FONT_SIZE_MIN) ? FONT_SIZE_MIN
-        : (px > FONT_SIZE_MAX) ? FONT_SIZE_MAX
-        : px;
+                        : (px > FONT_SIZE_MAX) ? FONT_SIZE_MAX
+                        : px;
 
-    ImGuiStyle& style = ImGui::GetStyle(); // único estilo global do contexto
+    ImGuiStyle& style = ImGui::GetStyle(); // estilo global único do contexto
 
-    style.FontSizeBase = clamped; // valor lido por NewFrame() imediatamente
+    style.FontSizeBase           = clamped; // lido por NewFrame() imediatamente
     style._NextFrameFontSizeBase = clamped; // garante sincronismo com o próximo frame
-    //      ^^ campo interno (prefixo _) documentado em imgui.h como "for internal use"
-    //         mas é exatamente o que o StyleEditor usa, então é a forma correta
 }
 
 // ============================================================================
@@ -182,18 +169,11 @@ void FontScale::SetSize(float px) {
 // ============================================================================
 
 /**
- * @brief Restaura o tamanho que estava ativo na primeira chamada a ProcessEvent.
+ * @brief Restaura o tamanho ativo na primeira chamada a ProcessEvent.
  *
- * Se ProcessEvent ainda não tiver sido chamado (usuário não usou o zoom),
- * o s_default_size ainda é 13.0f (valor do membro estático).
- * Nesse caso, o reset é para 13px — tamanho razoável em qualquer setup.
- *
- * Útil como comando no Console:
- * @code
- *   con->RegisterCommand(L"FONTRESET", L"Restaura tamanho original da fonte.",
- *       []() { FontScale::ResetToDefault(); });
- * @endcode
+ * Se ProcessEvent nunca foi chamado, s_default_size = 13.0f (fallback seguro).
  */
-void FontScale::ResetToDefault() {
-    SetSize(s_default_size); // s_default_size = valor capturado no primeiro zoom
+void FontScale::ResetToDefault()
+{
+    SetSize(s_default_size); // volta ao valor capturado no primeiro zoom
 }

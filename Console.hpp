@@ -2,233 +2,256 @@
 #include "pch.hpp"
 
 /**
- * @brief Metadata for a built-in console command (name + description).
+ * @brief Metadados de um comando interno (nome + descrição em wide-char).
  *
- * Uses std::wstring_view so names and descriptions are wide-char literals
- * (L"CLEAR", L"Limpa…") with no heap allocation.
+ * Usa std::wstring_view para que nomes e descrições sejam literais wide
+ * sem alocação de heap.
  */
 struct CommandDefinition {
-    std::wstring_view name;        ///< Wide command name,  e.g. L"CLEAR"
-    std::wstring_view description; ///< Wide description shown by HELP
+    std::wstring_view name;        ///< Nome largo, ex.: L"CLEAR"
+    std::wstring_view description; ///< Descrição exibida pelo HELP
 };
 
 /**
- * @brief ImGui debug console.
+ * @brief Console ImGui de debug — wide-char edition.
  *
- * All user-visible text (log items, history, commands, input buffer) is stored
- * as wchar_t so the full Unicode range — including emoji — is natively
- * representable as individual characters rather than multi-byte sequences.
+ * Todo texto visível (itens de log, histórico, comandos, buffer de entrada)
+ * é armazenado como wchar_t para que o range Unicode completo — incluindo
+ * emoji — seja representável como caracteres individuais.
  *
- * ImGui's InputText only accepts charUTF-8, so a small UTF-8 staging buffer
-     * (InputBufUtf8) is kept alongside the wchar_t InputBuf and the two are
-     * synchronised on each frame via WideToUtf8 / Utf8ToWide.
-     */
+ * ESCALA DE FONTE EXCLUSIVA DO CONSOLE
+ * ---------------------------------------
+ * m_font_scale controla ImGui::SetWindowFontScale() APENAS dentro da região
+ * de scroll do console.  O tamanho global da UI não é afetado.
+ * Botões "A+" / "A-" / "A=" na toolbar ajustam o valor em runtime.
+ * Limites: [CONSOLE_FONT_SCALE_MIN, CONSOLE_FONT_SCALE_MAX].
+ *
+ * DESPACHO DE COMANDOS COM ARGUMENTOS
+ * -------------------------------------
+ * ExecCommand extrai apenas o PRIMEIRO token da linha como chave de lookup.
+ * O wrapper gerado por RegisterCommand(name, func<args>) tokeniza a linha
+ * inteira e passa os tokens subsequentes ao handler real.
+ *
+ *   Usuário digita: "theme dark"
+ *   ExecCommand: chave = L"THEME"  → encontra a lambda wrapper
+ *   wrapper:     args  = { L"dark" } → repassa ao handler
+ */
 class Console {
 public:
-    // -------------------------------------------------------------------------
-    // Built-in command table  (compile-time, read-only)
-    // -------------------------------------------------------------------------
 
-    /** @brief Compile-time array of built-in commands with wide-char metadata. */
+    // =========================================================================
+    // Constantes de escala de fonte do console
+    // =========================================================================
+
+    static constexpr float CONSOLE_FONT_SCALE_MIN  = 0.5f;  ///< Escala mínima (50%)
+    static constexpr float CONSOLE_FONT_SCALE_MAX  = 3.0f;  ///< Escala máxima (300%)
+    static constexpr float CONSOLE_FONT_SCALE_STEP = 0.1f;  ///< Incremento por clique
+
+    // =========================================================================
+    // Tabela de comandos internos (compile-time, somente leitura)
+    // =========================================================================
+
+    /** @brief Array constexpr de comandos internos com metadados wide-char. */
     static constexpr std::array<CommandDefinition, 4> BuiltInCommands = { {
-        { L"CLEAR", L"Limpa todo o texto do log." },
-        { L"HELP", L"Exibe a lista de comandos disponiveis e suas descricoes." },
-        { L"HISTORY", L"Mostra o historico de comandos digitados recentemente." },
-        { L"EXIT", L"Fecha o programa" }
-        } };
+        { L"CLEAR",   L"Limpa todo o texto do log."                             },
+        { L"HELP",    L"Exibe a lista de comandos disponíveis e suas descrições."},
+        { L"HISTORY", L"Mostra o histórico de comandos digitados recentemente." },
+        { L"EXIT",    L"Fecha o programa."                                       }
+    } };
 
-    // -------------------------------------------------------------------------
-    // Public runtime dispatch table
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Tabelas de despacho em runtime
+    // =========================================================================
 
-    /** @brief Maps UPPERCASE wide command name -> callable. */
+    /** @brief Mapeia nome UPPERCASE → callable void(). */
     std::map<std::wstring, std::function<void()>> DispatchTable;
 
-    /** @brief Maps UPPERCASE wide command name -> wide help description. */
+    /** @brief Mapeia nome UPPERCASE → descrição wide para o HELP. */
     std::map<std::wstring, std::wstring> HelpDescriptions;
 
-    // -------------------------------------------------------------------------
-    // Lifecycle
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Ciclo de vida
+    // =========================================================================
 
     Console();
     ~Console();
 
-    // -------------------------------------------------------------------------
-    // Font / Atlas  (call BEFORE first ImGui::NewFrame)
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Font / Atlas  (chamar ANTES do primeiro ImGui::NewFrame)
+    // =========================================================================
 
     /**
-     * @brief Auto-detects and merges the platform emoji font into the ImGui atlas.
+     * @brief Retorna a tabela de ranges ImWchar para emoji e símbolos.
      *
-     * Probes known system font paths in order:
-     *  - Windows : Segoe UI Emoji  (%WINDIR%\Fonts\seguiemj.ttf)
-     *  - macOS   : Apple Color Emoji
-     *  - Linux   : Noto Color Emoji / Noto Emoji / Symbola (several paths)
-     *
-     * Call ONCE: AFTER ImGui::CreateContext() + backend Init, BEFORE NewFrame().
-     *
-     * @code
-     *   ImGui::CreateContext();
-     *   ImGui_ImplXXX_Init(...);
-     *   Console::LoadEmojiFont();   // no path needed
-     * @endcode
-     *
-     * @param font_size  Pixel size for both base font and the emoji overlay.
+     * Passe o retorno como 4º parâmetro de AddFontFromFileTTF.
+     * O ponteiro tem duração estática — sempre válido até o fim do programa.
      */
-     /**
-      * @brief Returns the ImWchar glyph-range table for emoji/symbol codepoints.
-      *
-      * Pass this to ImFontAtlas::AddFontFromFileTTF() as the glyph_ranges parameter
-      * whenever you load an emoji font through an external font manager.
-      * The array is statically allocated (program lifetime) so the pointer is
-      * always valid until the application exits.
-      *
-      * Ranges covered:
-      *  U+00A0-U+00FF  Latin-1 Supplement
-      *  U+2000-U+27BF  General Punctuation + Misc Symbols (checkmark, warning...)
-      *  U+2B00-U+2BFF  Misc Symbols and Arrows
-      *  U+1F300-U+1F9FF Emoji block (rocket, target, key...)
-      *
-      * @code
-      *   // In your FontManager or main.cpp:
-      *   ImFontConfig cfg;
-      *   cfg.MergeMode = true;
-      *   io.Fonts->AddFontFromFileTTF(emoji_path, size, &cfg,
-      *       Console::GetEmojiGlyphRanges()); // <-- pass this
-      * @endcode
-      *
-      * @return Pointer to a static sentinel-terminated ImWchar[] array.
-      */
     static const ImWchar* GetEmojiGlyphRanges();
 
     /**
-     * @brief Loads the emoji font automatically (self-contained, no FontManager needed).
+     * @brief Auto-detecta e mescla a fonte emoji do sistema no atlas ImGui.
      *
-     * Use this ONLY if you are NOT using a FontManager.  If you have a FontManager,
-     * use GetEmojiGlyphRanges() instead and pass the result to your FontManager so
-     * all fonts share the same atlas.
+     * Use APENAS se não houver FontManager.  Se houver, use GetEmojiGlyphRanges()
+     * e passe o resultado ao FontManager para que todos os slots compartilhem
+     * o mesmo atlas.
+     *
+     * @param font_size  Tamanho em pixels para a fonte base e o overlay emoji.
      */
     static void LoadEmojiFont(float font_size = 16.0f);
 
-    // -------------------------------------------------------------------------
-    // Command registration
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Registro de comandos
+    // =========================================================================
 
-    /** @brief Registers a built-in command (name must exist in BuiltInCommands). */
+    /** @brief Registra um comando interno (nome deve existir em BuiltInCommands). */
     void RegisterBuiltIn(std::wstring_view name, std::function<void()> func);
 
-    /** @brief Registers a command with no description. */
-    void RegisterCommand(const std::wstring& name, std::function<void()> func);
-
-    /** @brief Registers a command with a wide description shown by HELP. */
+    /** @brief Registra um comando sem descrição, sem argumentos. */
     void RegisterCommand(const std::wstring& name,
-        const std::wstring& desc,
-        std::function<void()> func);
+                         std::function<void()> func);
 
-        /**
- * @brief Registra um comando que recebe argumentos em tempo de execução.
- *
- * O handler recebe um std::vector<std::wstring> com os tokens que
- * seguem o nome do comando.
- *
- *   "theme dark"  → args = { L"dark" }
- *   "theme"       → args = {}
- *
- * @param name  Nome largo do comando (qualquer capitalização).
- * @param func  Callable void(std::vector<std::wstring> args).
- */
-void RegisterCommand(const std::wstring& name,
-                     std::function<void(std::vector<std::wstring>)> func);
+    /** @brief Registra um comando com descrição wide, sem argumentos. */
+    void RegisterCommand(const std::wstring& name,
+                         const std::wstring& desc,
+                         std::function<void()> func);
 
-/**
- * @brief Sobrecarga com descrição larga + handler com argumentos.
- */
-void RegisterCommand(const std::wstring& name,
-                     const std::wstring& desc,
-                     std::function<void(std::vector<std::wstring>)> func);
+    /**
+     * @brief Registra um comando cujo handler recebe argumentos em runtime.
+     *
+     * O handler recebe um std::vector<std::wstring> com os tokens que seguem
+     * o nome do comando na linha digitada pelo usuário.
+     *
+     *   "theme dark"  → args = { L"dark" }
+     *   "theme"       → args = {}
+     *
+     * @param name  Nome largo do comando (qualquer capitalização).
+     * @param func  Callable void(std::vector<std::wstring> args).
+     */
+    void RegisterCommand(const std::wstring& name,
+                         std::function<void(std::vector<std::wstring>)> func);
 
-    // -------------------------------------------------------------------------
-    // Log helpers  (all accept wide-char text)
-    // -------------------------------------------------------------------------
+    /**
+     * @brief Registra um comando com descrição wide + handler com argumentos.
+     *
+     * @param name  Nome largo do comando.
+     * @param desc  Descrição larga exibida pelo HELP.
+     * @param func  Callable void(std::vector<std::wstring> args).
+     */
+    void RegisterCommand(const std::wstring& name,
+                         const std::wstring& desc,
+                         std::function<void(std::vector<std::wstring>)> func);
 
-    /** @brief Clears all log items and frees their memory. */
+    // =========================================================================
+    // Helpers de log (todos aceitam texto wide-char)
+    // =========================================================================
+
+    /** @brief Libera todos os itens de log e limpa o vetor. */
     void ClearLog();
 
     /**
-     * @brief Formats a wide string (wprintf-style) and appends it to the log.
-     * @param fmt  Wide format string, e.g. L"Value: %d  Emoji: %ls".
+     * @brief Formata uma string larga (estilo wprintf) e adiciona ao log.
+     * @param fmt  String de formato wide, ex.: L"Valor: %d  Emoji: %ls".
      */
     void AddLog(const wchar_t* fmt, ...);
 
     /**
-     * @brief Appends a log line prefixed with a wide-char emoji.
-     * @param emoji  Wide emoji, e.g. L"\U0001F680" or L"🚀".
-     * @param fmt    Wide printf format string for the message body.
+     * @brief Adiciona uma linha de log prefixada com um emoji wide-char.
+     * @param emoji  Emoji wide, ex.: L"\U0001F680" ou L"🚀".
+     * @param fmt    String de formato wide para o corpo da mensagem.
      */
     void AddLogWithEmoji(const wchar_t* emoji, const wchar_t* fmt, ...);
 
-    /** @brief Returns a random wide-char emoji from an internal table. */
+    /** @brief Retorna um emoji wide-char aleatório de uma tabela interna. */
     std::wstring GetRandomEmoji() const;
 
-    // -------------------------------------------------------------------------
-    // Rendering
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Escala de fonte exclusiva do console
+    // =========================================================================
 
-    /** @brief Draws the console window.  Call every frame. */
+    /**
+     * @brief Aumenta a escala de fonte do console em CONSOLE_FONT_SCALE_STEP.
+     *
+     * Clampeado a CONSOLE_FONT_SCALE_MAX.
+     * Não afeta o ImGuiStyle global — apenas SetWindowFontScale() interno.
+     */
+    void IncreaseFontScale();
+
+    /**
+     * @brief Diminui a escala de fonte do console em CONSOLE_FONT_SCALE_STEP.
+     *
+     * Clampeado a CONSOLE_FONT_SCALE_MIN.
+     */
+    void DecreaseFontScale();
+
+    /** @brief Restaura a escala de fonte do console para 1.0 (100%). */
+    void ResetFontScale();
+
+    /** @brief Retorna a escala de fonte atual do console [0.5, 3.0]. */
+    [[nodiscard]] float GetFontScale() const noexcept;
+
+    // =========================================================================
+    // Renderização
+    // =========================================================================
+
+    /** @brief Desenha a janela do console. Chame uma vez por frame. */
     void Draw(const wchar_t* title, bool* p_open);
 
     /**
-     * @brief Executes a wide-char command string (history + dispatch).
-     * @param command_line  Wide command typed by the user.
+     * @brief Executa uma string de comando wide-char (histórico + despacho).
+     *
+     * Extrai o PRIMEIRO token como chave de lookup no DispatchTable.
+     * Os tokens seguintes ficam disponíveis para handlers registrados com
+     * a sobrecarga void(std::vector<std::wstring>).
+     *
+     * @param command_line  Comando digitado pelo usuário (wide-char).
      */
     void ExecCommand(const wchar_t* command_line);
 
 private:
-    // -------------------------------------------------------------------------
-    // Internal state  (all text is wchar_t)
-    // -------------------------------------------------------------------------
 
-    wchar_t                  InputBuf[512];      ///< Wide-char input (one codepoint per element)
-    char                     InputBufUtf8[2048]; ///< UTF-8 staging buffer for ImGui::InputText
-    ImVector<wchar_t*>       Items;              ///< Heap-allocated wide log lines
-    ImVector<const wchar_t*> Commands;           ///< Wide autocomplete command pointers
-    ImVector<wchar_t*>       History;            ///< Wide command history entries
-    int                      HistoryPos;         ///< -1 = new line; 0..N = browsing history
-    ImGuiTextFilter          Filter;             ///< Filter widget (UTF-8 internally)
-    bool                     AutoScroll;         ///< Auto-scroll to bottom flag
-    bool                     ScrollToBottom;     ///< Force scroll-to-bottom next frame
+    // =========================================================================
+    // Estado interno (todo texto em wchar_t)
+    // =========================================================================
 
-    // -------------------------------------------------------------------------
-    // Wide-char portable string helpers
-    // -------------------------------------------------------------------------
+    wchar_t                  InputBuf[512];      ///< Buffer de entrada wide-char
+    char                     InputBufUtf8[2048]; ///< Buffer UTF-8 para ImGui::InputText
+    ImVector<wchar_t*>       Items;              ///< Linhas de log alocadas no heap
+    ImVector<const wchar_t*> Commands;           ///< Ponteiros wide para autocomplete
+    ImVector<wchar_t*>       History;            ///< Histórico de comandos wide
+    int                      HistoryPos;         ///< -1 = nova linha; ≥0 = navegando
+    ImGuiTextFilter          Filter;             ///< Widget de filtro (UTF-8 interno)
+    bool                     AutoScroll;         ///< Auto-scroll para o final
+    bool                     ScrollToBottom;     ///< Força scroll no próximo frame
 
-    static int      Wcsicmp(const wchar_t* s1, const wchar_t* s2);
+    float                    m_font_scale;       ///< Escala de fonte exclusiva do console
+
+    // =========================================================================
+    // Helpers de string wide-char portáveis
+    // =========================================================================
+
+    static int      Wcsicmp (const wchar_t* s1, const wchar_t* s2);
     static int      Wcsnicmp(const wchar_t* s1, const wchar_t* s2, int n);
-    static wchar_t* Wcsdup(const wchar_t* s);
-    static void     Wcstrim(wchar_t* s);
+    static wchar_t* Wcsdup  (const wchar_t* s);
+    static void     Wcstrim (wchar_t* s);
 
-    // -------------------------------------------------------------------------
-    // Encoding helpers  (wchar_t <-> UTF-8 for ImGui boundary)
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Helpers de encoding (wchar_t ↔ UTF-8 na fronteira com ImGui)
+    // =========================================================================
 
-    /** @brief Converts a null-terminated wchar_t string to a UTF-8 std::string. */
     static std::string  WideToUtf8(const wchar_t* wstr);
+    static std::wstring Utf8ToWide(const char*    str);
 
-    /** @brief Converts a null-terminated UTF-8 char string to a std::wstring. */
-    static std::wstring Utf8ToWide(const char* str);
-
-    // -------------------------------------------------------------------------
-    // ImGui InputText callback plumbing
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Callback do InputText
+    // =========================================================================
 
     static int TextEditCallbackStub(ImGuiInputTextCallbackData* data);
-    int        TextEditCallback(ImGuiInputTextCallbackData* data);
+    int        TextEditCallback    (ImGuiInputTextCallbackData* data);
 
-    // -------------------------------------------------------------------------
-    // Color-tag renderer  (Termícolor)
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Renderizador de tags de cor (Termícolor)
+    // =========================================================================
 
-    ImVec4 ParseColor(const wchar_t* start, const wchar_t* end);
+    ImVec4 ParseColor      (const wchar_t* start, const wchar_t* end);
     void   RenderTermicolor(const wchar_t* text);
 };

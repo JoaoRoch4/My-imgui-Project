@@ -325,6 +325,7 @@
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
     <ClCompile Include="App_windows.cpp" />
+    <ClCompile Include="Commandregistry.cpp" />
     <ClCompile Include="Console.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
@@ -1184,6 +1185,7 @@
   <ItemGroup>
     <ClInclude Include="App.hpp" />
     <ClInclude Include="Appsettings.hpp" />
+    <ClInclude Include="Commandregistry.hpp" />
     <ClInclude Include="Console.hpp" />
     <ClInclude Include="EmojiDebugHelper.h" />
     <ClInclude Include="emojis.hpp" />

@@ -456,7 +456,12 @@
     <ClCompile Include="App_windows.cpp">
       <Filter>Local\src</Filter>
     </ClCompile>
-    <ClCompile Include="MyWindows.cpp" />
+    <ClCompile Include="MyWindows.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Commandregistry.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.hpp">
@@ -1010,6 +1015,9 @@
       <Filter>Local\include</Filter>
     </ClInclude>
     <ClInclude Include="emojis.hpp" />
+    <ClInclude Include="Commandregistry.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="external\freetype\src\base\ftver.rc">

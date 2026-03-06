@@ -39,6 +39,7 @@
 #include "MyWindows.hpp"
 #include "MyResult.hpp"
 #include "emojis.hpp"
+#include "Commandregistry.hpp"
 
 // =============================================================================
 // Definição do ponteiro global
@@ -594,78 +595,27 @@ MyResult App::GetDesktopResolution(int& horizontal, int& vertical) {
 // RegisterCommands
 // =============================================================================
 
+// Em App.cpp — inclua no topo:
+// #include "CommandRegistry.hpp"
+
 /**
- * @brief Registra todos os comandos do Console. Chamado após AllocGlobals().
+ * @brief Registra todos os comandos do Console delegando para CommandRegistry.
+ *
+ * A lógica real está em CommandRegistry.cpp, agrupada por tema:
+ *  RegisterLifecycle() → EXIT, QUIT, BREAK, forceexit, Abort, pauses
+ *  RegisterSystem()    → SPECS, VSYNC, NOVIEWPORTS, FONTRESET
+ *  RegisterTheme()     → MICA, NOMICA, theme [dark|light|classic]
+ *  RegisterDemo()      → implot, implot3d, Test Emojis
  */
-MyResult App::RegisterCommands() {
+MyResult App::RegisterCommands()
+{
     if(!g_Console) return MR_MSGBOX_ERR_END_LOC("g_Console nulo.");
     if(!g_Vulkan)  return MR_MSGBOX_ERR_END_LOC("g_Vulkan nulo.");
 
-    auto cmd_quit = [this]() { g_Console->AddLog(L"Saindo..."); g_Done = true; };
-    g_Console->RegisterBuiltIn(L"EXIT", cmd_quit);
-    g_Console->RegisterCommand(L"QUIT", cmd_quit);
-
-    g_Console->RegisterCommand(L"BREAK", L"USAR SOMENTE EM DEBUG",
-        [this]() {
-            if(IsDebuggerPresent()) __debugbreak();
-            else g_Console->AddLog(L"[AVISO] Nenhum depurador detectado.");
-        });
-
-    g_Console->RegisterCommand(L"SPECS", L"Exibe especificacoes de hardware.",
-        [this]() { SystemInfo::Collect(g_Vulkan, L"Vulkan").PrintToConsole(g_Console); });
-
-    g_Console->RegisterCommand(L"VSYNC", L"Liga ou desliga o VSync.",
-        [this]() {
-            const bool novo = !g_Vulkan->GetVSync();
-            g_Vulkan->SetVSync(novo);
-            g_Console->AddLog(novo ? L"VSync ON" : L"VSync OFF");
-        });
-
-    g_Console->RegisterCommand(L"NOVIEWPORTS",
-        L"Desabilita os viewports flutuantes do ImGui.",
-        [this]() {
-            DisableViewportDocking();
-            if(bViewportDocking) bViewportDocking = false;
-        });
-
-    g_Console->RegisterCommand(L"FONTRESET",
-        L"Restaura o tamanho original da fonte.",
-        [this]() { FontScale::ResetToDefault(); SaveConfig(); });
-
-    // Ativa o tema Mica e persiste
-    g_Console->RegisterCommand(L"MICA",
-        L"Ativa o tema Windows 11 Mica.",
-        [this]() {
-            g_Settings->use_mica_theme = true;
-            MicaTheme::ApplyMicaTheme(g_Settings->mica_theme);
-            SaveConfig();
-            g_Console->AddLog(L"Tema Mica ativado.");
-        });
-
-    // Desativa o tema Mica (usa style+color puros)
-    g_Console->RegisterCommand(L"NOMICA",
-        L"Desativa o tema Mica (usa estilo customizado).",
-        [this]() {
-            g_Settings->use_mica_theme = false;
-            ApplyStyleToImGui(); // reaplicação sem Mica
-            SaveConfig();
-            g_Console->AddLog(L"Tema Mica desativado.");
-        });
-
-    g_Console->RegisterCommand(L"forceexit", L"Encerra imediatamente sem cleanup.",
-        []() { g_App->g_Console->AddLog(L"FORCE EXIT"); std::exit(0); });
-
-    g_Console->RegisterCommand(L"implot",   L"Mostra ImPlot demo.",  []() { ImPlot::ShowDemoWindow(); });
-    g_Console->RegisterCommand(L"implot3d", L"Mostra ImPlot3D demo.", []() { });
-
-    g_Console->RegisterCommand(L"Abort",  L"Aborta o programa.",           []() { std::abort(); });
-    g_Console->RegisterCommand(L"System Pause", L"Pausa via Windows.",     []() { std::system("pause"); });
-    g_Console->RegisterCommand(L"Cpp Pause",    L"Pausa via C++.",          []() { std::cin.get(); });
-    g_Console->RegisterCommand(L"Test Emojis",    L"Testa emojis no console.",          [this]() { g_Console->AddLog(emojis); });
-
-
-    return MyResult::ok;
+    CommandRegistry reg(this, g_Console); // construtor leve — sem alocações
+    return reg.RegisterAll();             // registra todos os grupos em ordem
 }
+
 
 // =============================================================================
 // MainLoop
