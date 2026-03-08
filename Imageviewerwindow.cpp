@@ -116,7 +116,7 @@ ImageViewerWindow::ImageViewerWindow(int id, std::wstring filepath,
     const std::string path_utf8 = WideToUtf8(m_filepath.c_str());
 
     if(m_is_gif)
-        m_gif.Load(path_utf8.c_str());   // todos os frames → VkImage por frame
+      m_gif.LoadAsync(path_utf8.c_str());   // todos os frames → VkImage por frame
     else
         m_image.Load(path_utf8.c_str()); // textura única   → VkImage
 }
@@ -170,12 +170,58 @@ void ImageViewerWindow::Draw()
     const float init_h = static_cast<float>(std::min(GetContentHeight() + 80, 660));
     ImGui::SetNextWindowSize(ImVec2(init_w, init_h), ImGuiCond_Once);
 
-    // m_open é passado por ponteiro — o X da janela ImGui zera-o
     if(!ImGui::Begin(m_title_utf8.c_str(), &m_open))
     {
-        ImGui::End(); // End() obrigatório mesmo quando colapsada
+        ImGui::End();
         return;
     }
+
+    // Polling do upload assíncrono (custo zero quando já está pronto)
+    if(m_is_gif)
+        m_gif.TickUpload();
+
+    if(!IsLoaded())
+    {
+        if(m_is_gif && m_gif.IsFailed())
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Falha ao carregar GIF:");
+            ImGui::TextWrapped("%s", WideToUtf8(m_filepath.c_str()).c_str());
+            if(ImGui::Button("Fechar")) m_open = false;
+            ImGui::End();
+            return;
+        }
+
+        if(m_is_gif && m_gif.IsDecoding())
+        {
+            const float t = static_cast<float>(ImGui::GetTime());
+            ImGui::Text("A carregar GIF");
+            constexpr int   DOTS  = 8;
+            constexpr float STEP  = 6.2831853f / DOTS;
+            for(int d = 0; d < DOTS; ++d)
+            {
+                const float alpha = std::max(0.1f, 1.0f - std::fmod(t * 4.0f - d * STEP * 0.5f, 6.2831853f) / 6.2831853f);
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, alpha), ".");
+            }
+            ImGui::End();
+            return;
+        }
+
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Falha ao carregar:");
+        ImGui::TextWrapped("%s", WideToUtf8(m_filepath.c_str()).c_str());
+        if(ImGui::Button("Fechar")) m_open = false;
+        ImGui::End();
+        return;
+    }
+
+    if(m_is_gif)
+        m_gif.Update(ImGui::GetIO().DeltaTime * 1000.0f);
+
+    DrawToolbar();
+    ImGui::Separator();
+    DrawImage(ImGui::GetContentRegionAvail());
+
+    ImGui::End();
 
     // ---- Erro de carregamento ------------------------------------------
     if(!IsLoaded())
@@ -189,14 +235,57 @@ void ImageViewerWindow::Draw()
 
     // ---- Avança animação GIF -------------------------------------------
     // DeltaTime em segundos → converte para ms para o temporizador
+    // ---- Polling do upload assíncrono (GIF) --------------------------------
+    // TickUpload() só actua quando o decode terminou (ReadyToUpload).
+    // Na maioria dos frames é uma leitura atómica + return false — custo zero.
     if(m_is_gif)
-        m_gif.Update(ImGui::GetIO().DeltaTime * 1000.0f);
+        m_gif.TickUpload();
 
-    DrawToolbar();
-    ImGui::Separator();
-    DrawImage(ImGui::GetContentRegionAvail());
+    // ---- Estado de carregamento --------------------------------------------
+    if(!IsLoaded())
+    {
+        if(m_is_gif && m_gif.IsFailed())
+        {
+            // Decode ou upload falhou — mostra erro
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Falha ao carregar GIF:");
+            ImGui::TextWrapped("%s", WideToUtf8(m_filepath.c_str()).c_str());
+            if(ImGui::Button("Fechar")) m_open = false;
+            ImGui::End();
+            return;
+        }
 
-    ImGui::End(); // SEMPRE pareado com Begin()
+        if(m_is_gif && m_gif.IsDecoding())
+        {
+            // Animação de espera enquanto a thread decodifica
+            // ImGui::GetTime() oscila entre 0 e 2π — dá rotação suave
+            const float t = static_cast<float>(ImGui::GetTime());
+            ImGui::Text("A carregar GIF");
+
+            // Spinner simples: 8 pontos com brilho rotativo
+            // Cada ponto tem alpha proporcional à sua distância do "ponteiro"
+            constexpr int   DOTS  = 8;
+            constexpr float STEP  = 6.2831853f / DOTS; // 2π / 8
+            for(int d = 0; d < DOTS; ++d)
+            {
+                // Fracção de brilho: 1.0 no ponto activo, decresce nos outros
+                const float alpha = std::max(0.1f, 1.0f - std::fmod(t * 4.0f - d * STEP * 0.5f, 6.2831853f) / 6.2831853f);
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.7f, 0.9f, 1.0f, alpha), ".");
+            }
+
+            ImGui::End();
+            return; // não renderiza imagem ainda
+        }
+
+        // Imagem estática que falhou ao carregar
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Falha ao carregar:");
+        ImGui::TextWrapped("%s", WideToUtf8(m_filepath.c_str()).c_str());
+        if(ImGui::Button("Fechar")) m_open = false;
+        ImGui::End();
+        return;
+    }
+
+   
 }
 
 // ============================================================================

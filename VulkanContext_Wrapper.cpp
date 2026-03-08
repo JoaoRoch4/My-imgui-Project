@@ -36,7 +36,7 @@ VulkanContext::VulkanContext()
     , m_PresentMode(VK_PRESENT_MODE_FIFO_KHR)  // espelho do modo desejado (começa FIFO)
     , m_MinImageCount(2)                        // mínimo de imagens na swapchain
     , m_SwapChainRebuild(false)                 // sem rebuild pendente no início
-    , m_VSyncEnabled(true)                      // VSync ligado por padrão
+    , m_VSyncEnabled(false)                      // VSync ligado por padrão
 #ifdef APP_USE_VULKAN_DEBUG_REPORT
     , m_DebugMessenger(VK_NULL_HANDLE)          // messenger da validation layer
 #endif
@@ -132,7 +132,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanContext::DebugCallback(
  * @return            true se a extensão estiver disponível.
  */
 bool VulkanContext::IsExtensionAvailable(
-    const ImVector<VkExtensionProperties>& properties,
+    const std::vector<VkExtensionProperties>& properties,
     const char* extension) {
     for(const VkExtensionProperties& p : properties)
         if(strcmp(p.extensionName, extension) == 0) // comparação exata byte a byte
@@ -159,7 +159,7 @@ bool VulkanContext::IsExtensionAvailable(
  * @param instance_extensions  Extensões exigidas pelo SDL (VK_KHR_surface, etc.).
  * @return                     true se todos os objetos Vulkan foram criados com sucesso.
  */
-bool VulkanContext::Initialize(const ImVector<const char*>& instance_extensions) {
+bool VulkanContext::Initialize(const std::vector<const char*>& instance_extensions) {
     VkResult err;
 
 #ifdef IMGUI_IMPL_VULKAN_USE_VOLK
@@ -173,13 +173,13 @@ bool VulkanContext::Initialize(const ImVector<const char*>& instance_extensions)
 
         // Enumera extensões disponíveis no loader (2 chamadas: count depois dados)
         uint32_t properties_count;
-        ImVector<VkExtensionProperties> properties;
+        std::vector<VkExtensionProperties> properties;
         vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
         properties.resize(properties_count);
-        err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.Data);
+        err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.data());
         CheckVkResult(err);
 
-        ImVector<const char*> extensions = instance_extensions; // começa com as do SDL
+          std::vector<const char*> extensions = instance_extensions; // começa com as do SDL
 
         // VK_KHR_get_physical_device_properties2: necessário para features avançadas de device
         if(IsExtensionAvailable(properties, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
@@ -214,8 +214,8 @@ bool VulkanContext::Initialize(const ImVector<const char*>& instance_extensions)
         create_info.pNext = &debug_create_info; // encadeado: ativo só durante vkCreateInstance
     #endif
 
-        create_info.enabledExtensionCount = (uint32_t) extensions.Size;
-        create_info.ppEnabledExtensionNames = extensions.Data;
+        create_info.enabledExtensionCount = (uint32_t) extensions.size();
+        create_info.ppEnabledExtensionNames = extensions.data();
         err = vkCreateInstance(&create_info, m_Allocator, &m_Instance);
         CheckVkResult(err);
 

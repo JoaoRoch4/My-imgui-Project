@@ -117,36 +117,12 @@ _Use_decl_annotations_ INT  WINAPI  wWinMain(
  App* app = mem->GetApp();
  app->Startup();
 app->run();              // construtor: g_App = this
-
   // Shutdown após run() — Close() já liberou todos os recursos.
   WindowsConsole::shutdown();
+
+SDL_DestroyWindow(app->g_Window); //       → janela destruída APÓS Vulkan
+app->Close();
+app = nullptr;
 Memory::Get()->DestroyAll(); //  → destrói Vulkan usando g_Window aindaido
 Memory::Shutdown(); //           → delete Memory
-SDL_DestroyWindow(app->g_Window); //       → janela destruída APÓS Vulkan
-app = nullptr;
-}
-
-RENDERDOC_API_1_1_2 *rdoc_api = NULL;
-
-void InitRenderDoc() {
-    // Tenta obter o handle da DLL se o RenderDoc estiver injetado no processo
-    if (HMODULE mod = GetModuleHandleA("renderdoc.dll")) {
-        pRENDERDOC_GetAPI RENDERDOC_GetAPI = std::bit_cast<pRENDERDOC_GetAPI>(GetProcAddress(mod, "RENDERDOC_GetAPI"));
-        int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
-        if (ret != 1) rdoc_api = NULL;
-    }
-}
-
-// Chame isso quando quiser capturar (ex: ao apertar F12)
-void CaptureFrame() {
-    if (rdoc_api) {
-        rdoc_api->StartFrameCapture(NULL, NULL);
-        // O RenderDoc captura o que estiver entre Start e End
-        rdoc_api->EndFrameCapture(NULL, NULL);
-        
-        // Abre a UI do RenderDoc automaticamente para mostrar o resultado
-        if (!rdoc_api->IsTargetControlConnected()) {
-            rdoc_api->LaunchReplayUI(1, "");
-        }
-    }
 }

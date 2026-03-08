@@ -103,7 +103,6 @@ App::App()
  */
 void App::Startup() {
     g_App = Memory::Get()->GetApp(); // expõe a instância do Memory globalmente
-    InitRenderDoc();                  // conecta ao RenderDoc se a DLL estiver injetada
     started = true;
 }
 
@@ -178,6 +177,7 @@ MyResult App::run() {
 
     // ---- 10. Loop principal ----------------------------------------------
     const MyResult result = MainLoop();
+
 
     return result;
 }
@@ -279,7 +279,7 @@ MyResult App::AllocImages() {
  *  7. SDL_DestroyWindow + SDL_Quit
  *  8. g_App = nullptr
  */
-void App::Close() {
+MyResult App::Close() {
     // ---- 1. Salva o estado final ----------------------------------------
     // Captura o tema Mica atual (pode ter sido editado no StyleEditor)
     // junto com todos os outros campos de AppSettings.
@@ -319,6 +319,8 @@ void App::Close() {
     g_App = nullptr;
 
     ImPlot::DestroyContext();
+
+    return MR_OK;
 }
 
 // =============================================================================

@@ -1,64 +1,29 @@
 /**
  * @file GifAnimation.cpp
- * @brief Animação GIF multi-frame com pool Vulkan dedicado por instância.
+ * @brief Animação GIF com decode assíncrono e upload GPU totalmente não-bloqueante.
  *
- * POR QUE UM POOL PRIVADO?
- * -------------------------
- * ImGui_ImplVulkan_AddTexture() aloca VkDescriptorSet do pool global do ImGui.
- * Desde julho 2023 esse pool tem tamanho mínimo — um GIF com muitos frames
- * estouraria o pool silenciosamente ou causaria VK_ERROR_OUT_OF_POOL_MEMORY.
+ * ============================================================
+ *  DECODE — GifDecoder puro C++ (sem stb)
+ * ============================================================
  *
- * Cada GifAnimation cria o SEU PRÓPRIO VkDescriptorPool:
+ *  Decode delega para GifDecoder::Decode() — sem stb_image, sem malloc.
+ *  GifDecoder usa std::ifstream + standard library e suporta:
+ *    - LZW variable-width codes (2-12 bits), bit reader LE
+ *    - Interlacing (4 passes GIF89a)
+ *    - Disposal methods (DoNotDispose/RestoreBackground/RestorePrevious)
+ *    - Transparência por índice de cor (Graphic Control Extension)
+ *    - Global e Local Color Tables
  *
- *   VkDescriptorPoolCreateInfo {
- *       maxSets        = frame_count   // exactamente o necessário
- *       poolSizeCount  = 1
- *       pPoolSizes     = { COMBINED_IMAGE_SAMPLER, frame_count }
- *   }
- *
- * Ao destruir:
- *   vkDestroyDescriptorPool(device, m_desc_pool)
- *   → liberta TODOS os sets de uma vez, 1 chamada Vulkan
- *   → sem necessidade de vkFreeDescriptorSets por frame
- *
- * LAYOUT DO DESCRIPTOR SET
- * -------------------------
- * ImGui usa um layout fixo para texturas:
- *   binding 0 → VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, stageFlags = FRAGMENT
- *
- * Recuperamos esse layout via ImGui_ImplVulkan_GetDescriptorSetLayout() —
- * disponível no ImGui moderno (1.90+). Sem criar um layout próprio.
- *
- * PIPELINE DE CARREGAMENTO POR FRAME
- * ------------------------------------
- * Para cada frame i do GIF:
- *  1.  vkCreateImage (DEVICE_LOCAL, SAMPLED | TRANSFER_DST)
- *  2.  vkCreateImageView
- *  3.  vkCreateSampler (LINEAR)
- *  4.  vkAllocateDescriptorSets (do pool privado)
- *  5.  vkUpdateDescriptorSets   (bind sampler + view ao set)
- *  6.  vkCreateBuffer (HOST_VISIBLE, TRANSFER_SRC)
- *  7.  memcpy pixels → buffer mapeado + vkFlushMappedMemoryRanges
- *  8.  command buffer: barrier + vkCmdCopyBufferToImage + barrier
- *  9.  vkQueueSubmit + vkDeviceWaitIdle
- *
- * O upload buffer é mantido até Unload() — mesmo padrão do ImGui example.
- *
- * stb_image — sem STB_IMAGE_IMPLEMENTATION aqui
- * -----------------------------------------------
- * A implementação (STB_IMAGE_IMPLEMENTATION) está definida em Image.cpp.
- * GifAnimation.cpp apenas inclui o header para usar stbi_load_gif_from_memory.
+ *  Resultado: GifDecodeResult com buffer RGBA contíguo [frame0]...[frameN].
+ *  PrepareChunk acede directamente por offset: raw_pixels.data() + gi*frame_bytes.
  */
 
 #include "pch.hpp"
 #include "GifAnimation.hpp"
-
-#include <stb_image.h>  // apenas declarações — implementação em Image.cpp
+#include "GifDecoder.hpp"  // decoder GIF puro C++ — sem stb
 
 #include "Memory.hpp"
 #include "VulkanContext_Wrapper.hpp"
-
-#include <fstream>  // std::ifstream
 
 // ============================================================================
 // Move semântico
@@ -66,47 +31,91 @@
 
 /**
  * @brief Move constructor — transfere posse de todos os recursos.
- *
- * O estado da origem é zerado para que o destrutor não liberte nada.
+ * A origem fica em Idle com todos os handles a VK_NULL_HANDLE.
  */
 GifAnimation::GifAnimation(GifAnimation&& o) noexcept
     : m_frames(std::move(o.m_frames))
     , m_delays_ms(std::move(o.m_delays_ms))
     , m_desc_pool(o.m_desc_pool)
+    , m_desc_layout(o.m_desc_layout)
+    , m_upload_cmd_pool(o.m_upload_cmd_pool)
+    , m_upload_cmd(o.m_upload_cmd)
+    , m_chunk_fence(o.m_chunk_fence)
     , m_width(o.m_width)
     , m_height(o.m_height)
     , m_current_frame(o.m_current_frame)
     , m_elapsed_ms(o.m_elapsed_ms)
     , m_paused(o.m_paused)
+    , m_total_frames(o.m_total_frames)
+    , m_frames_loaded(o.m_frames_loaded)
+    , m_chunk_in_flight(o.m_chunk_in_flight)
+    , m_chunk_begin(o.m_chunk_begin)
+    , m_chunk_end(o.m_chunk_end)
+    , m_decode_thread(std::move(o.m_decode_thread))
+    , m_pending(std::move(o.m_pending))
 {
-    // Zera a origem — o destrutor de o não deve libertar os recursos
-    o.m_desc_pool     = VK_NULL_HANDLE;
-    o.m_width         = 0;
-    o.m_height        = 0;
-    o.m_current_frame = 0;
-    o.m_elapsed_ms    = 0.0f;
+    m_state.store(o.m_state.load());
+
+    o.m_desc_pool        = VK_NULL_HANDLE;
+    o.m_desc_layout      = VK_NULL_HANDLE;
+    o.m_upload_cmd_pool  = VK_NULL_HANDLE;
+    o.m_upload_cmd       = VK_NULL_HANDLE;
+    o.m_chunk_fence      = VK_NULL_HANDLE;
+    o.m_chunk_in_flight  = false;
+    o.m_width            = 0;
+    o.m_height           = 0;
+    o.m_current_frame    = 0;
+    o.m_elapsed_ms       = 0.0f;
+    o.m_total_frames     = 0;
+    o.m_frames_loaded    = 0;
+    o.m_chunk_begin      = 0;
+    o.m_chunk_end        = 0;
+    o.m_state.store(State::Idle);
 }
 
 GifAnimation& GifAnimation::operator=(GifAnimation&& o) noexcept
 {
     if(this != &o)
     {
-        Unload(); // liberta recursos actuais
+        Unload();
 
-        m_frames        = std::move(o.m_frames);
-        m_delays_ms     = std::move(o.m_delays_ms);
-        m_desc_pool     = o.m_desc_pool;
-        m_width         = o.m_width;
-        m_height        = o.m_height;
-        m_current_frame = o.m_current_frame;
-        m_elapsed_ms    = o.m_elapsed_ms;
-        m_paused        = o.m_paused;
+        m_frames           = std::move(o.m_frames);
+        m_delays_ms        = std::move(o.m_delays_ms);
+        m_desc_pool        = o.m_desc_pool;
+        m_desc_layout      = o.m_desc_layout;
+        m_upload_cmd_pool  = o.m_upload_cmd_pool;
+        m_upload_cmd       = o.m_upload_cmd;
+        m_chunk_fence      = o.m_chunk_fence;
+        m_width            = o.m_width;
+        m_height           = o.m_height;
+        m_current_frame    = o.m_current_frame;
+        m_elapsed_ms       = o.m_elapsed_ms;
+        m_paused           = o.m_paused;
+        m_total_frames     = o.m_total_frames;
+        m_frames_loaded    = o.m_frames_loaded;
+        m_chunk_in_flight  = o.m_chunk_in_flight;
+        m_chunk_begin      = o.m_chunk_begin;
+        m_chunk_end        = o.m_chunk_end;
+        m_decode_thread    = std::move(o.m_decode_thread);
+        m_pending          = std::move(o.m_pending);
+        m_state.store(o.m_state.load());
 
-        o.m_desc_pool     = VK_NULL_HANDLE;
-        o.m_width         = 0;
-        o.m_height        = 0;
-        o.m_current_frame = 0;
-        o.m_elapsed_ms    = 0.0f;
+        o.m_desc_pool       = VK_NULL_HANDLE;
+        o.m_desc_layout     = VK_NULL_HANDLE;
+        o.m_upload_cmd_pool = VK_NULL_HANDLE;
+        o.m_upload_cmd      = VK_NULL_HANDLE;
+        o.m_chunk_fence     = VK_NULL_HANDLE;
+        o.m_chunk_in_flight = false;
+        o.m_width           = 0;
+        o.m_height          = 0;
+        o.m_current_frame   = 0;
+        o.m_elapsed_ms      = 0.0f;
+        o.m_total_frames    = 0;
+        o.m_frames_loaded   = 0;
+        o.m_frames_decoded.store(0);   // reset streaming — novo GIF
+        o.m_chunk_begin     = 0;
+        o.m_chunk_end       = 0;
+        o.m_state.store(State::Idle);
     }
     return *this;
 }
@@ -118,16 +127,16 @@ GifAnimation& GifAnimation::operator=(GifAnimation&& o) noexcept
 /**
  * @brief Converte VkDescriptorSet → ImTextureID.
  *
- * VkDescriptorSet é um handle não-dispatchable (uint64_t em Windows 64-bit).
- * Não existe conversão implícita para ImTextureID (struct no ImGui moderno).
- * reinterpret_cast via ImU64 é a abordagem correcta — igual ao ImGui internamente.
+ * VkDescriptorSet é um handle não-dispatchable — representado como uint64_t
+ * no Windows 64-bit. ImTextureID é ImU64 internamente.
+ * reinterpret_cast é necessário porque não existe conversão implícita
+ * entre handles Vulkan opacos e ImTextureID.
  */
 ImTextureID GifAnimation::GifFrame::GetID() const noexcept
 {
     if(ds == VK_NULL_HANDLE)
         return ImTextureID{};
 
-    // VkDescriptorSet → ImU64 (uint64_t) → ImTextureID
     const ImU64 handle = reinterpret_cast<ImU64>(ds);
     return ImTextureID{ handle };
 }
@@ -137,14 +146,12 @@ ImTextureID GifAnimation::GifFrame::GetID() const noexcept
 // ============================================================================
 
 /**
- * @brief Encontra o índice do tipo de memória que satisfaz os requisitos.
- *
- * Equivalente a findMemoryType() do exemplo oficial do ImGui.
+ * @brief Encontra o índice do tipo de memória Vulkan que satisfaz os requisitos.
  *
  * @param phys_dev     GPU física.
- * @param type_filter  memoryRequirements.memoryTypeBits — máscara de tipos compatíveis.
+ * @param type_filter  memoryRequirements.memoryTypeBits — bitmask dos tipos válidos.
  * @param properties   Flags desejadas (DEVICE_LOCAL, HOST_VISIBLE, etc.).
- * @return             Índice do tipo, ou 0xFFFFFFFF se não encontrado.
+ * @return             Índice compatível ou 0xFFFFFFFF se não encontrado.
  */
 uint32_t GifAnimation::FindMemoryType(VkPhysicalDevice phys_dev,
                                        uint32_t type_filter,
@@ -156,10 +163,48 @@ uint32_t GifAnimation::FindMemoryType(VkPhysicalDevice phys_dev,
     for(uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
     {
         const bool type_ok  = (type_filter & (1u << i)) != 0;
-        const bool flags_ok = (mem_props.memoryTypes[i].propertyFlags & properties) == properties;
-        if(type_ok && flags_ok) return i;
+        const bool flags_ok =
+            (mem_props.memoryTypes[i].propertyFlags & properties) == properties;
+
+        if(type_ok && flags_ok)
+            return i;
     }
-    return 0xFFFFFFFF; // não encontrado
+
+    return 0xFFFFFFFF;
+}
+
+// ============================================================================
+// CreateUploadCommandPool
+// ============================================================================
+
+/**
+ * @brief Cria o VkCommandPool dedicado para operações de upload GIF.
+ *
+ * Pool separado do ImGui e do frame renderer:
+ *   - O command buffer pode ficar válido entre ticks enquanto o fence pende
+ *   - Reset individual com RESET_COMMAND_BUFFER_BIT sem destruir o pool
+ *   - Sem interferência com os pools do render loop
+ */
+bool GifAnimation::CreateUploadCommandPool(VkDevice device, uint32_t queue_family)
+{
+    VkCommandPoolCreateInfo info{};
+    info.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    info.queueFamilyIndex = queue_family;
+    info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    const VkResult err = vkCreateCommandPool(device, &info, nullptr, &m_upload_cmd_pool);
+    VulkanContext::CheckVkResult(err);
+    if(err != VK_SUCCESS) return false;
+
+    VkCommandBufferAllocateInfo alloc{};
+    alloc.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc.commandPool        = m_upload_cmd_pool;
+    alloc.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc.commandBufferCount = 1;
+
+    const VkResult err2 = vkAllocateCommandBuffers(device, &alloc, &m_upload_cmd);
+    VulkanContext::CheckVkResult(err2);
+    return (err2 == VK_SUCCESS);
 }
 
 // ============================================================================
@@ -167,33 +212,23 @@ uint32_t GifAnimation::FindMemoryType(VkPhysicalDevice phys_dev,
 // ============================================================================
 
 /**
- * @brief Cria o VkDescriptorPool privado dimensionado a frame_count sets.
- *
- * Tipo: COMBINED_IMAGE_SAMPLER — exactamente o que ImGui usa para texturas.
- * maxSets = frame_count — sem desperdício, sem risco de estouro.
- *
- * FREE_DESCRIPTOR_SET_BIT: permite libertar sets individualmente se necessário.
- * Na prática destruímos o pool inteiro em Unload() — mais eficiente.
- *
- * @param device       Device Vulkan.
- * @param frame_count  Número de frames — define o tamanho do pool.
- * @return             true se o pool foi criado com sucesso.
+ * @brief Cria o VkDescriptorPool privado dimensionado ao total de frames.
+ * maxSets = total_frames — sem overhead, sem impacto no pool do ImGui.
  */
 bool GifAnimation::CreateDescriptorPool(VkDevice device, uint32_t frame_count)
 {
-    // Um slot de COMBINED_IMAGE_SAMPLER por frame
     VkDescriptorPoolSize pool_size{};
     pool_size.type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     pool_size.descriptorCount = frame_count;
 
-    VkDescriptorPoolCreateInfo pool_info{};
-    pool_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    pool_info.maxSets       = frame_count; // exactamente o necessário
-    pool_info.poolSizeCount = 1;
-    pool_info.pPoolSizes    = &pool_size;
+    VkDescriptorPoolCreateInfo info{};
+    info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    info.maxSets       = frame_count;
+    info.poolSizeCount = 1;
+    info.pPoolSizes    = &pool_size;
 
-    const VkResult err = vkCreateDescriptorPool(device, &pool_info, nullptr, &m_desc_pool);
+    const VkResult err = vkCreateDescriptorPool(device, &info, nullptr, &m_desc_pool);
     VulkanContext::CheckVkResult(err);
     return (err == VK_SUCCESS);
 }
@@ -203,35 +238,20 @@ bool GifAnimation::CreateDescriptorPool(VkDevice device, uint32_t frame_count)
 // ============================================================================
 
 /**
- * @brief Cria o VkDescriptorSetLayout que espelha o layout de textura do ImGui.
- *
- * O ImGui Vulkan backend usa internamente um layout com:
- *   binding 0 → VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
- *               stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
- *               descriptorCount = 1
- *
- * Não existe função pública no ImGui para obter esse layout, por isso
- * criamos o nosso próprio com a mesma especificação. Os sets alocados
- * com este layout são compatíveis com o shader interno do ImGui.
- *
- * O layout é criado uma vez em Load() e destruído em Unload().
- *
- * @param device  Device Vulkan.
- * @return        true se o layout foi criado com sucesso.
+ * @brief Cria o layout que espelha o descriptor set interno do ImGui.
+ * binding 0 → COMBINED_IMAGE_SAMPLER, FRAGMENT, count 1.
  */
 bool GifAnimation::CreateDescriptorSetLayout(VkDevice device)
 {
-    // Binding 0: sampler combinado — textura + sampler num único descriptor
-    // Usado pelo fragment shader do ImGui para amostrar a textura da imagem
     VkDescriptorSetLayoutBinding binding{};
-    binding.binding         = 0;                                          // binding 0 no shader
-    binding.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // sampler + view
-    binding.descriptorCount = 1;                                          // 1 textura por set
-    binding.stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;              // só o fragment shader lê
+    binding.binding         = 0;
+    binding.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    binding.descriptorCount = 1;
+    binding.stageFlags      = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo info{};
     info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    info.bindingCount = 1;        // um único binding
+    info.bindingCount = 1;
     info.pBindings    = &binding;
 
     const VkResult err = vkCreateDescriptorSetLayout(device, &info, nullptr, &m_desc_layout);
@@ -240,136 +260,492 @@ bool GifAnimation::CreateDescriptorSetLayout(VkDevice device)
 }
 
 // ============================================================================
-// UploadFrame
+// CreateFence
 // ============================================================================
 
 /**
- * @brief Faz o upload de um frame GIF para a VRAM e configura o descriptor.
+ * @brief Cria o VkFence reutilizável não-sinalizado para sincronização de chunks.
  *
- * SEQUÊNCIA (igual ao exemplo oficial do ImGui):
- *  1.  vkCreateImage + vkAllocateMemory + vkBindImageMemory (DEVICE_LOCAL)
- *  2.  vkCreateImageView
- *  3.  vkCreateSampler (LINEAR)
- *  4.  vkAllocateDescriptorSets (do pool privado m_desc_pool)
- *  5.  vkUpdateDescriptorSets   (COMBINED_IMAGE_SAMPLER binding 0)
- *  6.  vkCreateBuffer + vkAllocateMemory + vkBindBufferMemory (HOST_VISIBLE)
- *  7.  vkMapMemory + memcpy + vkFlushMappedMemoryRanges + vkUnmapMemory
- *  8.  vkAllocateCommandBuffers + vkBeginCommandBuffer
- *  9.  barrier UNDEFINED → TRANSFER_DST_OPTIMAL
- * 10.  vkCmdCopyBufferToImage
- * 11.  barrier TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL
- * 12.  vkEndCommandBuffer + vkQueueSubmit + vkDeviceWaitIdle
- *
- * @param device    Device Vulkan.
- * @param queue     Fila gráfica.
- * @param cmd_pool  Command pool do frame actual do swapchain.
- * @param pixels    Array RGBA 8bpp — width * height * 4 bytes.
- * @param w         Largura em píxeis.
- * @param h         Altura em píxeis.
- * @param frame     Estrutura GifFrame a preencher.
- * @return          true se todos os recursos foram criados com sucesso.
+ * Não-sinalizado (sem VK_FENCE_CREATE_SIGNALED_BIT):
+ *   vkResetFences antes de cada SubmitChunk → não-sinalizado
+ *   vkGetFenceStatus → VK_NOT_READY enquanto GPU trabalha
+ *   vkGetFenceStatus → VK_SUCCESS após GPU terminar
  */
-bool GifAnimation::UploadFrame(VkDevice device, VkQueue queue,
-                                VkCommandPool cmd_pool,
-                                const uint8_t* pixels, int w, int h,
-                                GifFrame& frame)
+bool GifAnimation::CreateFence(VkDevice device)
 {
-    VkPhysicalDevice phys = Memory::Get()->GetVulkan()->GetPhysicalDevice();
-    const std::size_t img_size = static_cast<std::size_t>(w * h * 4); // RGBA
+    VkFenceCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    info.flags = 0; // não-sinalizado
+
+    const VkResult err = vkCreateFence(device, &info, nullptr, &m_chunk_fence);
+    VulkanContext::CheckVkResult(err);
+    return (err == VK_SUCCESS);
+}
+
+// ============================================================================
+// DestroyFrame
+// ============================================================================
+
+/**
+ * @brief Liberta os recursos Vulkan de um GifFrame, excepto o descriptor set.
+ * O VkDescriptorSet pertence ao pool — destruído em Unload() de uma só vez.
+ */
+void GifAnimation::DestroyFrame(VkDevice device, GifFrame& frame)
+{
+    if(frame.upload_mem   != VK_NULL_HANDLE) vkFreeMemory(device, frame.upload_mem, nullptr);
+    if(frame.upload_buf   != VK_NULL_HANDLE) vkDestroyBuffer(device, frame.upload_buf, nullptr);
+    if(frame.sampler      != VK_NULL_HANDLE) vkDestroySampler(device, frame.sampler, nullptr);
+    if(frame.image_view   != VK_NULL_HANDLE) vkDestroyImageView(device, frame.image_view, nullptr);
+    if(frame.image        != VK_NULL_HANDLE) vkDestroyImage(device, frame.image, nullptr);
+    if(frame.image_memory != VK_NULL_HANDLE) vkFreeMemory(device, frame.image_memory, nullptr);
+
+    frame = GifFrame{};
+}
+
+// ============================================================================
+// DecodeGif — background thread (streaming por frame)
+// ============================================================================
+
+/**
+ * @brief Decodifica o GIF frame a frame e disponibiliza cada um imediatamente.
+ *
+ * Usa GifDecoder::Decode() com dois callbacks:
+ *
+ *  on_header — chamado uma vez após o Parse (Pass 1):
+ *    - Define m_total_frames, m_width, m_height
+ *    - Pré-aloca m_pending.raw_pixels (total_frames × frame_bytes)
+ *    - Pré-aloca m_pending.delays_ms
+ *    - Chamado ANTES do primeiro on_frame — TickUpload pode inicializar
+ *      os recursos Vulkan (DescriptorPool, etc.) com o total exacto
+ *
+ *  on_frame — chamado por frame em ordem (0, 1, 2, ..., N-1):
+ *    - Copia o canvas RGBA para m_pending.raw_pixels[frame_idx * frame_bytes]
+ *    - Incrementa m_frames_decoded (atomic)
+ *    - Se frame_idx == 0: store(Uploading) → TickUpload começa no próximo tick
+ *
+ * A thread de decode corre concorrentemente com os ticks do render loop:
+ *   - TickUpload só lê frames até m_frames_decoded (atomic)
+ *   - PrepareChunk limita chunk_end a m_frames_decoded
+ *   - O mutex protege apenas o acesso a m_pending.raw_pixels e delays_ms
+ *
+ * @param path  Cópia do caminho — a thread possui a string.
+ */
+void GifAnimation::DecodeGif(std::string path)
+{
+    bool ok = GifDecoder::Decode(
+        std::filesystem::path(path),
+
+        // ---- on_header: metadados exactos antes de qualquer frame -----------
+        // Chamado logo após o Parse — permite pré-alocar tudo de uma vez
+        [this](int w, int h, int total_frames, std::size_t frame_bytes)
+        {
+            {
+                std::lock_guard<std::mutex> lock(m_pending_mutex);
+
+                // Pré-aloca o buffer contíguo com capacidade para TODOS os frames
+                // Será preenchido incrementalmente por on_frame via memcpy de offset
+                m_pending.raw_pixels.resize(
+                    static_cast<std::size_t>(total_frames) * frame_bytes);
+
+                // Pré-aloca delays — on_frame escreve delays_ms[frame_idx] directamente
+                m_pending.delays_ms.resize(
+                    static_cast<std::size_t>(total_frames), 100);
+
+                m_pending.frame_bytes = frame_bytes;
+                m_width               = w;
+                m_height              = h;
+            }
+
+            // m_total_frames definido ANTES de qualquer frame chegar —
+            // TickUpload usa-o para dimensionar DescriptorPool e m_frames[]
+            m_total_frames = static_cast<uint32_t>(total_frames);
+        },
+
+        // ---- on_frame: chamado por frame assim que composto ------------------
+        // canvas_span é válido apenas durante esta chamada — copiar imediatamente
+        [this](int frame_idx, std::span<const uint8_t> canvas_span, int delay_ms)
+        {
+            {
+                std::lock_guard<std::mutex> lock(m_pending_mutex);
+
+                // Calcula o offset deste frame no buffer contíguo
+                const std::size_t offset =
+                    static_cast<std::size_t>(frame_idx) * m_pending.frame_bytes;
+
+                // Copia canvas RGBA → raw_pixels[frame_idx]
+                // O buffer foi pré-alocado em on_header — sem realloc aqui
+                std::memcpy(
+                    m_pending.raw_pixels.data() + offset,
+                    canvas_span.data(),
+                    m_pending.frame_bytes);
+
+                m_pending.delays_ms[static_cast<std::size_t>(frame_idx)] = delay_ms;
+            }
+
+            // Incrementa o contador de frames disponíveis (atomic — sem lock)
+            // PrepareChunk lê este valor para saber até onde pode fazer upload
+            ++m_frames_decoded;
+
+            // Frame 0 pronto → sinaliza TickUpload para começar o upload GPU
+            // Os frames seguintes chegam enquanto o upload do frame 0 corre
+            if(frame_idx == 0)
+                m_state.store(State::Uploading);
+        }
+    );
+
+    // Se o decode falhou sem entregar nenhum frame
+    if(!ok || m_frames_decoded.load() == 0)
+        m_state.store(State::Failed);
+}
+
+// ============================================================================
+// PrepareChunk — FASE 1
+// ============================================================================
+
+/**
+ * @brief Cria recursos GPU + memcpy (offset directo) + grava o command buffer.
+ *
+ * Para cada frame i no chunk [m_chunk_begin, m_chunk_end):
+ *   1. vkCreateImage DEVICE_LOCAL + memória + bind
+ *   2. vkCreateImageView
+ *   3. vkCreateSampler LINEAR
+ *   4. vkCreateBuffer HOST_VISIBLE (staging) + memória + bind
+ *   5. vkMapMemory + memcpy(staging, raw_pixels + gi*frame_bytes) + flush
+ *   6. Preenche barriers copy_barriers[i] e use_barriers[i]
+ *
+ * O memcpy em 5 usa o OFFSET directamente no buffer contíguo do GifDecoder —
+ * sem cópia intermédia, sem alocação adicional de heap.
+ *
+ * Após o loop, grava o command buffer:
+ *   vkResetCommandBuffer
+ *   vkCmdPipelineBarrier(N × UNDEFINED→TRANSFER_DST) — batch
+ *   vkCmdCopyBufferToImage × N
+ *   vkCmdPipelineBarrier(N × TRANSFER_DST→SHADER_READ_ONLY) — batch
+ *   vkEndCommandBuffer
+ */
+bool GifAnimation::PrepareChunk(VkDevice device, VkPhysicalDevice phys)
+{
+    m_chunk_begin = m_frames_loaded;
+
+    // Limita o chunk aos frames que já têm pixels prontos em m_pending.
+    // m_frames_decoded é incrementado pela background thread a cada on_frame.
+    // Nunca fazemos upload de um frame cujo memcpy ainda não terminou.
+    const uint32_t frames_ready =
+        std::min(m_frames_decoded.load(), m_total_frames);
+
+    m_chunk_end = std::min(m_chunk_begin + FRAMES_PER_CHUNK, frames_ready);
+
+
+    const uint32_t chunk_size = m_chunk_end - m_chunk_begin;
+    if(chunk_size == 0) return true;
+
+    // Lê frame_bytes sob lock — escrito pela thread em DecodeGif
+    std::size_t frame_bytes = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_pending_mutex);
+        frame_bytes = m_pending.frame_bytes;
+    }
 
     VkResult err;
 
-    // ---- 1. VkImage DEVICE_LOCAL -------------------------------------------
+    std::vector<VkImageMemoryBarrier> copy_barriers(chunk_size);
+    std::vector<VkImageMemoryBarrier> use_barriers(chunk_size);
+
+    for(uint32_t ci = 0; ci < chunk_size; ++ci)
     {
-        VkImageCreateInfo info{};
-        info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        info.imageType     = VK_IMAGE_TYPE_2D;
-        info.format        = VK_FORMAT_R8G8B8A8_UNORM;
-        info.extent        = { static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1 };
-        info.mipLevels     = 1;
-        info.arrayLayers   = 1;
-        info.samples       = VK_SAMPLE_COUNT_1_BIT;
-        info.tiling        = VK_IMAGE_TILING_OPTIMAL;       // layout optimizado para GPU
-        info.usage         = VK_IMAGE_USAGE_SAMPLED_BIT     // lida por shader
-                           | VK_IMAGE_USAGE_TRANSFER_DST_BIT; // destino da cópia
-        info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-        info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;     // transitamos no command buffer
+        const uint32_t gi    = m_chunk_begin + ci;
+        GifFrame&      frame = m_frames[gi];
 
-        err = vkCreateImage(device, &info, nullptr, &frame.image);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
+        // ---- VkImage DEVICE_LOCAL + memória + bind -------------------------
+        {
+            VkImageCreateInfo info{};
+            info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            info.imageType     = VK_IMAGE_TYPE_2D;
+            info.format        = VK_FORMAT_R8G8B8A8_UNORM;
+            info.extent        = {
+                static_cast<uint32_t>(m_width),
+                static_cast<uint32_t>(m_height), 1
+            };
+            info.mipLevels     = 1;
+            info.arrayLayers   = 1;
+            info.samples       = VK_SAMPLE_COUNT_1_BIT;
+            info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+            info.usage         = VK_IMAGE_USAGE_SAMPLED_BIT
+                               | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+            info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-        VkMemoryRequirements req;
-        vkGetImageMemoryRequirements(device, frame.image, &req);
+            err = vkCreateImage(device, &info, nullptr, &frame.image);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
 
-        VkMemoryAllocateInfo alloc{};
-        alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        alloc.allocationSize  = req.size;
-        alloc.memoryTypeIndex = FindMemoryType(phys, req.memoryTypeBits,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT); // memória privada da GPU
+            VkMemoryRequirements req;
+            vkGetImageMemoryRequirements(device, frame.image, &req);
 
-        err = vkAllocateMemory(device, &alloc, nullptr, &frame.image_memory);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
+            VkMemoryAllocateInfo alloc{};
+            alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            alloc.allocationSize  = req.size;
+            alloc.memoryTypeIndex = FindMemoryType(phys, req.memoryTypeBits,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        err = vkBindImageMemory(device, frame.image, frame.image_memory, 0);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
+            err = vkAllocateMemory(device, &alloc, nullptr, &frame.image_memory);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+
+            err = vkBindImageMemory(device, frame.image, frame.image_memory, 0);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+        }
+
+        // ---- VkImageView ---------------------------------------------------
+        {
+            VkImageViewCreateInfo info{};
+            info.sType                       = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            info.image                       = frame.image;
+            info.viewType                    = VK_IMAGE_VIEW_TYPE_2D;
+            info.format                      = VK_FORMAT_R8G8B8A8_UNORM;
+            info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            info.subresourceRange.levelCount = 1;
+            info.subresourceRange.layerCount = 1;
+
+            err = vkCreateImageView(device, &info, nullptr, &frame.image_view);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+        }
+
+        // ---- VkSampler LINEAR ----------------------------------------------
+        {
+            VkSamplerCreateInfo info{};
+            info.sType         = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            info.magFilter     = VK_FILTER_LINEAR;
+            info.minFilter     = VK_FILTER_LINEAR;
+            info.mipmapMode    = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            info.addressModeU  = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            info.addressModeV  = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            info.addressModeW  = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            info.minLod        = -1000.0f;
+            info.maxLod        =  1000.0f;
+            info.maxAnisotropy = 1.0f;
+
+            err = vkCreateSampler(device, &info, nullptr, &frame.sampler);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+        }
+
+        // ---- VkBuffer HOST_VISIBLE (staging) + memória + bind -------------
+        {
+            VkBufferCreateInfo info{};
+            info.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            info.size        = static_cast<VkDeviceSize>(frame_bytes);
+            info.usage       = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+            err = vkCreateBuffer(device, &info, nullptr, &frame.upload_buf);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+
+            VkMemoryRequirements req;
+            vkGetBufferMemoryRequirements(device, frame.upload_buf, &req);
+
+            VkMemoryAllocateInfo alloc{};
+            alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            alloc.allocationSize  = req.size;
+            alloc.memoryTypeIndex = FindMemoryType(phys, req.memoryTypeBits,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+            err = vkAllocateMemory(device, &alloc, nullptr, &frame.upload_mem);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+
+            err = vkBindBufferMemory(device, frame.upload_buf, frame.upload_mem, 0);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+        }
+
+        // ---- memcpy directo com offset no buffer contíguo -----------------
+        {
+            void* map = nullptr;
+            err = vkMapMemory(device, frame.upload_mem, 0,
+                static_cast<VkDeviceSize>(frame_bytes), 0, &map);
+            VulkanContext::CheckVkResult(err);
+            if(err != VK_SUCCESS) return false;
+
+            // AQUI ESTÁ O GANHO PRINCIPAL:
+            // Em vez de ler de decoded[gi].pixels.data() (vector separado),
+            // calculamos o offset directamente no buffer contíguo do GifDecoder.
+            // Sem indireções de heap extra — cache-friendly, um único bloco.
+            {
+                std::lock_guard<std::mutex> lock(m_pending_mutex);
+                const uint8_t* src =
+                    m_pending.raw_pixels.data() +                // início do buffer
+                    static_cast<std::ptrdiff_t>(gi) *            // frame index global
+                    static_cast<std::ptrdiff_t>(frame_bytes);    // bytes por frame
+
+                // Único memcpy por frame — inevitável (CPU→staging buffer Vulkan)
+                std::memcpy(map, src, frame_bytes);
+
+                // Copia delay para m_delays_ms enquanto temos o lock
+                m_delays_ms[gi] = m_pending.delays_ms[gi];
+            }
+
+            VkMappedMemoryRange range{};
+            range.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            range.memory = frame.upload_mem;
+            range.size   = static_cast<VkDeviceSize>(frame_bytes);
+            vkFlushMappedMemoryRanges(device, 1, &range);
+
+            vkUnmapMemory(device, frame.upload_mem);
+        }
+
+        // ---- Preenche barriers UNDEFINED→TRANSFER_DST ---------------------
+        copy_barriers[ci]                             = VkImageMemoryBarrier{};
+        copy_barriers[ci].sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        copy_barriers[ci].dstAccessMask               = VK_ACCESS_TRANSFER_WRITE_BIT;
+        copy_barriers[ci].oldLayout                   = VK_IMAGE_LAYOUT_UNDEFINED;
+        copy_barriers[ci].newLayout                   = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        copy_barriers[ci].srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        copy_barriers[ci].dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        copy_barriers[ci].image                       = frame.image;
+        copy_barriers[ci].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy_barriers[ci].subresourceRange.levelCount = 1;
+        copy_barriers[ci].subresourceRange.layerCount = 1;
+
+        // ---- Preenche barriers TRANSFER_DST→SHADER_READ_ONLY --------------
+        use_barriers[ci]                             = VkImageMemoryBarrier{};
+        use_barriers[ci].sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        use_barriers[ci].srcAccessMask               = VK_ACCESS_TRANSFER_WRITE_BIT;
+        use_barriers[ci].dstAccessMask               = VK_ACCESS_SHADER_READ_BIT;
+        use_barriers[ci].oldLayout                   = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        use_barriers[ci].newLayout                   = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        use_barriers[ci].srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        use_barriers[ci].dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        use_barriers[ci].image                       = frame.image;
+        use_barriers[ci].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        use_barriers[ci].subresourceRange.levelCount = 1;
+        use_barriers[ci].subresourceRange.layerCount = 1;
     }
 
-    // ---- 2. VkImageView ----------------------------------------------------
-    {
-        VkImageViewCreateInfo info{};
-        info.sType                       = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        info.image                       = frame.image;
-        info.viewType                    = VK_IMAGE_VIEW_TYPE_2D;
-        info.format                      = VK_FORMAT_R8G8B8A8_UNORM;
-        info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        info.subresourceRange.levelCount = 1;
-        info.subresourceRange.layerCount = 1;
+    // ---- Grava o command buffer único para o chunk -------------------------
 
-        err = vkCreateImageView(device, &info, nullptr, &frame.image_view);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
+    // Reset individual — RESET_COMMAND_BUFFER_BIT no pool permite isto
+    err = vkResetCommandBuffer(m_upload_cmd, 0);
+    VulkanContext::CheckVkResult(err);
+    if(err != VK_SUCCESS) return false;
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    err = vkBeginCommandBuffer(m_upload_cmd, &begin_info);
+    VulkanContext::CheckVkResult(err);
+    if(err != VK_SUCCESS) return false;
+
+    // Batch de N barriers UNDEFINED→TRANSFER_DST numa única chamada
+    vkCmdPipelineBarrier(m_upload_cmd,
+        VK_PIPELINE_STAGE_HOST_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 0, nullptr, 0, nullptr,
+        chunk_size, copy_barriers.data());
+
+    // N cópias buffer→imagem
+    for(uint32_t ci = 0; ci < chunk_size; ++ci)
+    {
+        const uint32_t gi = m_chunk_begin + ci;
+
+        VkBufferImageCopy region{};
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.layerCount = 1;
+        region.imageExtent = {
+            static_cast<uint32_t>(m_width),
+            static_cast<uint32_t>(m_height), 1
+        };
+
+        vkCmdCopyBufferToImage(m_upload_cmd,
+            m_frames[gi].upload_buf,
+            m_frames[gi].image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &region);
     }
 
-    // ---- 3. VkSampler LINEAR -----------------------------------------------
-    {
-        VkSamplerCreateInfo info{};
-        info.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        info.magFilter    = VK_FILTER_LINEAR;
-        info.minFilter    = VK_FILTER_LINEAR;
-        info.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        info.minLod       = -1000.0f;
-        info.maxLod       =  1000.0f;
-        info.maxAnisotropy = 1.0f;
+    // Batch de N barriers TRANSFER_DST→SHADER_READ_ONLY numa única chamada
+    vkCmdPipelineBarrier(m_upload_cmd,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0, 0, nullptr, 0, nullptr,
+        chunk_size, use_barriers.data());
 
-        err = vkCreateSampler(device, &info, nullptr, &frame.sampler);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-    }
+    err = vkEndCommandBuffer(m_upload_cmd);
+    VulkanContext::CheckVkResult(err);
+    return (err == VK_SUCCESS);
+}
 
-    // ---- 4. VkDescriptorSet do pool privado --------------------------------
-    // Usa m_desc_layout criado em Load() — espelha o layout interno do ImGui
-    // (binding 0, COMBINED_IMAGE_SAMPLER, FRAGMENT). Sem chamar AddTexture().
+// ============================================================================
+// SubmitChunk — FASE 2
+// ============================================================================
+
+/**
+ * @brief Submete o command buffer com o fence — NÃO BLOQUEIA.
+ *
+ * vkQueueSubmit: GPU começa as cópias.
+ * A main thread retorna IMEDIATAMENTE — zero vkDeviceWaitIdle.
+ * O fence é sinalizado quando a GPU terminar o chunk.
+ */
+bool GifAnimation::SubmitChunk(VkQueue queue)
+{
+    VkDevice device = Memory::Get()->GetVulkan()->GetDevice();
+
+    // Reset do fence ANTES do submit — estado não-sinalizado
+    const VkResult reset_err = vkResetFences(device, 1, &m_chunk_fence);
+    VulkanContext::CheckVkResult(reset_err);
+    if(reset_err != VK_SUCCESS) return false;
+
+    VkSubmitInfo submit{};
+    submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers    = &m_upload_cmd;
+
+    // Submit com fence — GPU sinaliza quando terminar, sem bloquear a CPU
+    const VkResult err = vkQueueSubmit(queue, 1, &submit, m_chunk_fence);
+    VulkanContext::CheckVkResult(err);
+    if(err != VK_SUCCESS) return false;
+
+    m_chunk_in_flight = true;
+    return true;
+}
+
+// ============================================================================
+// FinalizeChunk — FASE 3
+// ============================================================================
+
+/**
+ * @brief Após fence sinalizado: aloca descriptor sets para o chunk.
+ *
+ * A GPU terminou — imagens em SHADER_READ_ONLY_OPTIMAL.
+ * Aloca e actualiza os VkDescriptorSet para [m_chunk_begin, m_chunk_end).
+ * Após retornar, GetCurrentID() pode devolver estes frames com segurança.
+ *
+ * Quando o último chunk é finalizado, liberta m_pending.raw_pixels:
+ * todos os pixels já estão na VRAM — RAM CPU recuperada.
+ */
+bool GifAnimation::FinalizeChunk(VkDevice device)
+{
+    const uint32_t chunk_size = m_chunk_end - m_chunk_begin;
+
+    for(uint32_t ci = 0; ci < chunk_size; ++ci)
     {
+        const uint32_t gi    = m_chunk_begin + ci;
+        GifFrame&      frame = m_frames[gi];
+
         VkDescriptorSetAllocateInfo alloc{};
         alloc.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        alloc.descriptorPool     = m_desc_pool;    // pool privado desta GifAnimation
+        alloc.descriptorPool     = m_desc_pool;
         alloc.descriptorSetCount = 1;
-        alloc.pSetLayouts        = &m_desc_layout; // layout que espelha o do ImGui
+        alloc.pSetLayouts        = &m_desc_layout;
 
-        err = vkAllocateDescriptorSets(device, &alloc, &frame.ds);
+        const VkResult err = vkAllocateDescriptorSets(device, &alloc, &frame.ds);
         VulkanContext::CheckVkResult(err);
         if(err != VK_SUCCESS) return false;
-    }
 
-    // ---- 5. vkUpdateDescriptorSets — associa sampler + view ao set ---------
-    // Binding 0 = COMBINED_IMAGE_SAMPLER — mesmo binding usado pelo shader ImGui
-    {
         VkDescriptorImageInfo image_info{};
         image_info.sampler     = frame.sampler;
         image_info.imageView   = frame.image_view;
@@ -378,7 +754,7 @@ bool GifAnimation::UploadFrame(VkDevice device, VkQueue queue,
         VkWriteDescriptorSet write{};
         write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet          = frame.ds;
-        write.dstBinding      = 0; // binding 0 = textura no shader ImGui
+        write.dstBinding      = 0;
         write.descriptorCount = 1;
         write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         write.pImageInfo      = &image_info;
@@ -386,316 +762,171 @@ bool GifAnimation::UploadFrame(VkDevice device, VkQueue queue,
         vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
     }
 
-    // ---- 6. Upload buffer HOST_VISIBLE -------------------------------------
-    // HOST_VISIBLE: CPU pode mapear e escrever via vkMapMemory.
-    // Não é HOST_COHERENT → flush manual necessário (passo 7).
+    m_frames_loaded   = m_chunk_end;
+    m_chunk_in_flight = false;
+
+    // Quando todos os frames foram finalizados, liberta o buffer raw do GifDecoder
+    // Todos os pixels já estão na VRAM — raw_pixels já não é necessário
+    if(m_frames_loaded >= m_total_frames)
     {
-        VkBufferCreateInfo info{};
-        info.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        info.size        = static_cast<VkDeviceSize>(img_size);
-        info.usage       = VK_BUFFER_USAGE_TRANSFER_SRC_BIT; // fonte da cópia
-        info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        err = vkCreateBuffer(device, &info, nullptr, &frame.upload_buf);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-
-        VkMemoryRequirements req;
-        vkGetBufferMemoryRequirements(device, frame.upload_buf, &req);
-
-        VkMemoryAllocateInfo alloc{};
-        alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        alloc.allocationSize  = req.size;
-        alloc.memoryTypeIndex = FindMemoryType(phys, req.memoryTypeBits,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT); // mapeável pela CPU
-
-        err = vkAllocateMemory(device, &alloc, nullptr, &frame.upload_mem);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-
-        err = vkBindBufferMemory(device, frame.upload_buf, frame.upload_mem, 0);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-    }
-
-    // ---- 7. Copia pixels CPU → upload buffer --------------------------------
-    {
-        void* map = nullptr;
-        err = vkMapMemory(device, frame.upload_mem, 0,
-            static_cast<VkDeviceSize>(img_size), 0, &map);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-
-        std::memcpy(map, pixels, img_size); // pixels do frame → memória mapeada
-
-        // Flush: garante visibilidade das escritas CPU pela GPU
-        // (memória HOST_VISIBLE mas não HOST_COHERENT)
-        VkMappedMemoryRange range{};
-        range.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-        range.memory = frame.upload_mem;
-        range.size   = static_cast<VkDeviceSize>(img_size);
-
-        err = vkFlushMappedMemoryRanges(device, 1, &range);
-        VulkanContext::CheckVkResult(err);
-
-        vkUnmapMemory(device, frame.upload_mem);
-    }
-
-    // ---- 8. Command buffer -------------------------------------------------
-    VkCommandBuffer cmd = VK_NULL_HANDLE;
-    {
-        VkCommandBufferAllocateInfo alloc{};
-        alloc.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        alloc.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        alloc.commandPool        = cmd_pool;
-        alloc.commandBufferCount = 1;
-
-        err = vkAllocateCommandBuffers(device, &alloc, &cmd);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-
-        VkCommandBufferBeginInfo begin{};
-        begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        err = vkBeginCommandBuffer(cmd, &begin);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-    }
-
-    // ---- 9. Barrier UNDEFINED → TRANSFER_DST_OPTIMAL -----------------------
-    // Transita o layout da imagem para aceitar a cópia do buffer.
-    {
-        VkImageMemoryBarrier barrier{};
-        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.dstAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier.newLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image                           = frame.image;
-        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.levelCount     = 1;
-        barrier.subresourceRange.layerCount     = 1;
-
-        vkCmdPipelineBarrier(cmd,
-            VK_PIPELINE_STAGE_HOST_BIT,     // CPU terminou de escrever no buffer
-            VK_PIPELINE_STAGE_TRANSFER_BIT, // GPU pode começar a cópia
-            0, 0, nullptr, 0, nullptr, 1, &barrier);
-    }
-
-    // ---- 10. vkCmdCopyBufferToImage ----------------------------------------
-    {
-        VkBufferImageCopy region{};
-        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        region.imageSubresource.layerCount = 1;
-        region.imageExtent = { static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1 };
-
-        vkCmdCopyBufferToImage(cmd,
-            frame.upload_buf,
-            frame.image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &region);
-    }
-
-    // ---- 11. Barrier TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL -------
-    // Transita para o layout que o sampler do fragment shader espera.
-    {
-        VkImageMemoryBarrier barrier{};
-        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.srcAccessMask                   = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask                   = VK_ACCESS_SHADER_READ_BIT;
-        barrier.oldLayout                       = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout                       = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image                           = frame.image;
-        barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.levelCount     = 1;
-        barrier.subresourceRange.layerCount     = 1;
-
-        vkCmdPipelineBarrier(cmd,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,        // cópia terminou
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, // shader pode ler
-            0, 0, nullptr, 0, nullptr, 1, &barrier);
-    }
-
-    // ---- 12. Submit + wait -------------------------------------------------
-    {
-        err = vkEndCommandBuffer(cmd);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-
-        VkSubmitInfo submit{};
-        submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submit.commandBufferCount = 1;
-        submit.pCommandBuffers    = &cmd;
-
-        err = vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE);
-        VulkanContext::CheckVkResult(err);
-        if(err != VK_SUCCESS) return false;
-
-        // Bloqueante — upload único por frame, fora do loop de render
-        err = vkDeviceWaitIdle(device);
-        VulkanContext::CheckVkResult(err);
+        std::lock_guard<std::mutex> lock(m_pending_mutex);
+        m_pending.raw_pixels.clear();
+        m_pending.raw_pixels.shrink_to_fit();
+        m_pending.delays_ms.clear();
     }
 
     return true;
 }
 
 // ============================================================================
-// DestroyFrame
+// LoadAsync
 // ============================================================================
 
 /**
- * @brief Liberta os recursos Vulkan de um frame, sem o descriptor set.
- *
- * O descriptor set NÃO é libertado aqui — pertence ao pool privado
- * que é destruído em bloco em Unload() com vkDestroyDescriptorPool.
- * Destruir o pool liberta automaticamente todos os sets alocados nele.
- *
- * @param device  Device Vulkan.
- * @param frame   Frame a destruir.
+ * @brief Inicia o decode numa background thread — retorna imediatamente.
+ * TickUpload() detecta Decoding → Uploading e começa os chunks.
  */
-void GifAnimation::DestroyFrame(VkDevice device, GifFrame& frame)
+void GifAnimation::LoadAsync(const char* path)
 {
-    // Upload buffer — mantido até agora para o caso de reload futuro,
-    // libertado aqui em conjunto com os outros recursos
-    if(frame.upload_mem  != VK_NULL_HANDLE) vkFreeMemory(device, frame.upload_mem, nullptr);
-    if(frame.upload_buf  != VK_NULL_HANDLE) vkDestroyBuffer(device, frame.upload_buf, nullptr);
-    if(frame.sampler     != VK_NULL_HANDLE) vkDestroySampler(device, frame.sampler, nullptr);
-    if(frame.image_view  != VK_NULL_HANDLE) vkDestroyImageView(device, frame.image_view, nullptr);
-    if(frame.image       != VK_NULL_HANDLE) vkDestroyImage(device, frame.image, nullptr);
-    if(frame.image_memory!= VK_NULL_HANDLE) vkFreeMemory(device, frame.image_memory, nullptr);
-    // frame.ds NÃO é libertado — destruído pelo pool
+    Unload();
 
-    frame = GifFrame{}; // zera todos os handles
+    m_frames_loaded   = 0;
+    m_frames_decoded.store(0);   // reset streaming — novo GIF
+    m_total_frames    = 0;
+    m_chunk_begin     = 0;
+    m_chunk_end       = 0;
+    m_chunk_in_flight = false;
+    m_state.store(State::Decoding);
+
+    m_decode_thread = std::thread(&GifAnimation::DecodeGif, this, std::string(path));
 }
 
 // ============================================================================
-// Load
+// Load — síncrono
 // ============================================================================
 
 /**
- * @brief Carrega todos os frames de um ficheiro GIF.
- *
- * LEITURA DO FICHEIRO:
- *   stbi_load_gif_from_memory requer o buffer completo em memória.
- *   Lemos com ifstream(ate|binary) para determinar o tamanho sem tellg loop.
- *
- * DECODIFICAÇÃO:
- *   stbi_load_gif_from_memory(buf, len, &delays, &w, &h, &frames, &comp, 4)
- *   Devolve buffer RGBA: [frame0: w*h*4][frame1: w*h*4]...
- *   delays[] em ms, 1 por frame — alocado por stbi, libertado com stbi_image_free.
- *
- * POOL PRIVADO:
- *   CreateDescriptorPool(device, frame_count) antes do loop de upload.
- *   Cada frame chama UploadFrame() que aloca 1 set do pool privado.
- *
- * @param path  Caminho UTF-8 do ficheiro .gif.
- * @return      true se pelo menos 1 frame foi carregado com sucesso.
+ * @brief Carregamento síncrono — bloqueia até tudo estar na VRAM.
+ * Decode na thread actual + loop TickUpload com vkWaitForFences.
  */
 bool GifAnimation::Load(const char* path)
 {
-    Unload(); // liberta estado anterior
+    Unload();
 
-    // ---- Lê o ficheiro inteiro para CPU ------------------------------------
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if(!file.is_open()) return false;
+    m_frames_loaded   = 0;
+    m_frames_decoded.store(0);   // reset streaming — novo GIF
+    m_total_frames    = 0;
+    m_chunk_begin     = 0;
+    m_chunk_end       = 0;
+    m_chunk_in_flight = false;
+    m_state.store(State::Decoding);
 
-    const std::streamsize file_size = file.tellg();
-    if(file_size <= 0) return false;
+    DecodeGif(std::string(path));
 
-    file.seekg(0, std::ios::beg);
-
-    std::vector<uint8_t> file_buf(static_cast<std::size_t>(file_size));
-    if(!file.read(reinterpret_cast<char*>(file_buf.data()), file_size))
+    if(m_state.load() != State::Uploading)
         return false;
 
-    // ---- Decodifica todos os frames ----------------------------------------
-    int frame_count = 0;
-    int width       = 0;
-    int height      = 0;
-    int channels    = 0;
-    int* raw_delays = nullptr;
+    VkDevice device = Memory::Get()->GetVulkan()->GetDevice();
 
-    // Deleter nomeado — lambda falha no MSVC (tipos distintos por instância)
-    struct StbiDeleter {
-        void operator()(stbi_uc* p) const noexcept { stbi_image_free(p); }
-        void operator()(int*     p) const noexcept { stbi_image_free(p); }
-    };
-
-    stbi_uc* raw_pixels = stbi_load_gif_from_memory(
-        file_buf.data(),
-        static_cast<int>(file_size),
-        &raw_delays,
-        &width, &height,
-        &frame_count,
-        &channels,
-        4); // força RGBA — VK_FORMAT_R8G8B8A8_UNORM
-
-    if(!raw_pixels || frame_count <= 0)
-        return false;
-
-    // RAII — stbi_image_free ao sair do escopo mesmo em caso de falha
-    std::unique_ptr<stbi_uc, StbiDeleter> pixels_guard(raw_pixels);
-    std::unique_ptr<int,     StbiDeleter> delays_guard(raw_delays);
-
-    // ---- Contexto Vulkan ---------------------------------------------------
-    VulkanContext* vk     = Memory::Get()->GetVulkan();
-    VkDevice       device = vk->GetDevice();
-    VkQueue        queue  = vk->GetQueue();
-
-    // Command pool do frame actual do swapchain
-    ImGui_ImplVulkanH_Window* wd = vk->GetMainWindowData();
-    VkCommandPool cmd_pool =
-        wd->Frames[static_cast<uint32_t>(wd->FrameIndex)].CommandPool;
-
-    // ---- Cria o layout de descriptor (uma vez por animação) ----------------
-    // Espelha o layout interno do ImGui — binding 0, COMBINED_IMAGE_SAMPLER.
-    // Deve existir antes de CreateDescriptorPool e de UploadFrame.
-    if(!CreateDescriptorSetLayout(device))
-        return false;
-
-    // ---- Cria o pool privado dimensionado a frame_count --------------------
-    if(!CreateDescriptorPool(device, static_cast<uint32_t>(frame_count)))
-        return false;
-
-    // ---- Prepara vectores --------------------------------------------------
-    m_frames.resize(static_cast<std::size_t>(frame_count));
-    m_delays_ms.resize(static_cast<std::size_t>(frame_count));
-    m_width  = width;
-    m_height = height;
-
-    // Bytes de um único frame: width * height * 4 canais RGBA
-    const std::size_t frame_bytes =
-        static_cast<std::size_t>(width) *
-        static_cast<std::size_t>(height) * 4;
-
-    // ---- Upload de cada frame para a VRAM ---------------------------------
-    for(int i = 0; i < frame_count; ++i)
+    while(m_state.load() == State::Uploading)
     {
-        // Ponteiro para o início dos píxeis deste frame no buffer contíguo
-        const uint8_t* frame_pixels =
-            raw_pixels + static_cast<std::ptrdiff_t>(i) *
-                         static_cast<std::ptrdiff_t>(frame_bytes);
-
-        if(!UploadFrame(device, queue, cmd_pool,
-                        frame_pixels, width, height,
-                        m_frames[static_cast<std::size_t>(i)]))
+        if(!TickUpload())
         {
-            Unload(); // liberta o que foi carregado até agora
+            if(m_state.load() == State::Failed) return false;
+
+            // Modo síncrono: espera o fence em vez de polling
+            if(m_chunk_in_flight && m_chunk_fence != VK_NULL_HANDLE)
+            {
+                constexpr uint64_t TIMEOUT_NS = 5'000'000'000ULL;
+                vkWaitForFences(device, 1, &m_chunk_fence, VK_TRUE, TIMEOUT_NS);
+            }
+        }
+    }
+
+    return m_state.load() == State::Loaded;
+}
+
+// ============================================================================
+// TickUpload
+// ============================================================================
+
+/**
+ * @brief Avança o upload fence-based — chame UMA VEZ por frame na main thread.
+ *
+ * Estados:
+ *   Decoding       → return false (thread ainda a correr)
+ *   Uploading, chunk em voo:
+ *     vkGetFenceStatus NOT_READY → return false (~1µs)
+ *     vkGetFenceStatus SUCCESS   → FinalizeChunk → PrepareChunk + SubmitChunk
+ *   Uploading, sem chunk em voo → PrepareChunk + SubmitChunk → return false
+ *   Loaded → return true (último chunk finalizado neste tick)
+ *
+ * @return true no tick em que o último chunk foi finalizado.
+ */
+bool GifAnimation::TickUpload()
+{
+    if(m_state.load() != State::Uploading)
+        return false;
+
+    // NÃO fazemos join aqui — a background thread ainda pode estar a correr
+    // (a entregar frames via on_frame enquanto o upload do frame 0 começa).
+    // O join é feito em Unload() que aguarda correctamente a thread terminar.
+
+    VulkanContext*   vk     = Memory::Get()->GetVulkan();
+    VkDevice         device = vk->GetDevice();
+    VkPhysicalDevice phys   = vk->GetPhysicalDevice();
+    VkQueue          queue  = vk->GetQueue();
+
+    // ---- Inicialização única (primeiro tick em Uploading) ------------------
+    if(m_frames_loaded == 0 && !m_chunk_in_flight)
+    {
+        if(!CreateDescriptorSetLayout(device))            { m_state.store(State::Failed); return false; }
+        if(!CreateDescriptorPool(device, m_total_frames)) { m_state.store(State::Failed); return false; }
+        if(!CreateUploadCommandPool(device, vk->GetQueueFamily())) { m_state.store(State::Failed); return false; }
+        if(!CreateFence(device))                          { m_state.store(State::Failed); return false; }
+
+        m_frames.resize(m_total_frames);
+        m_delays_ms.resize(m_total_frames, 100);
+    }
+
+    // ---- Verifica chunk em voo (fence-based) -------------------------------
+    if(m_chunk_in_flight)
+    {
+        // NÃO BLOQUEIA — apenas lê o estado do fence (~microsegundos)
+        const VkResult status = vkGetFenceStatus(device, m_chunk_fence);
+
+        if(status == VK_NOT_READY)
+            return false; // GPU ainda a trabalhar — render loop continua normalmente
+
+        if(status != VK_SUCCESS)
+        {
+            VulkanContext::CheckVkResult(status);
+            m_state.store(State::Failed);
             return false;
         }
 
-        // Normaliza delays: 0 ms → MIN_FRAME_DELAY_MS (evita animação a 0 fps)
-        const int raw_d = (raw_delays != nullptr) ? raw_delays[i] : 100;
-        m_delays_ms[static_cast<std::size_t>(i)] =
-            (raw_d < MIN_FRAME_DELAY_MS) ? MIN_FRAME_DELAY_MS : raw_d;
+        // Fence sinalizado — GPU terminou este chunk
+        if(!FinalizeChunk(device))
+        {
+            m_state.store(State::Failed);
+            return false;
+        }
+
+        // Verifica se todos os frames foram finalizados
+        if(m_frames_loaded >= m_total_frames)
+        {
+            m_state.store(State::Loaded);
+            return true; // animação totalmente pronta
+        }
+
+        // Há mais chunks — PrepareChunk do próximo imediatamente neste tick
     }
 
-    // pixels_guard e delays_guard libertam os buffers stbi aqui ✓
-    return true;
+    // ---- Prepara e submete o próximo chunk ---------------------------------
+    if(!PrepareChunk(device, phys)) { m_state.store(State::Failed); return false; }
+    if(!SubmitChunk(queue))         { m_state.store(State::Failed); return false; }
+
+    return false; // chunk submetido — próximo tick verifica o fence
 }
 
 // ============================================================================
@@ -703,48 +934,101 @@ bool GifAnimation::Load(const char* path)
 // ============================================================================
 
 /**
- * @brief Liberta todos os recursos Vulkan.
+ * @brief Liberta todos os recursos e aguarda a thread.
  *
- * ORDEM:
- *  1. DestroyFrame() por cada frame — liberta image, memory, view, sampler, buffers
- *  2. vkDestroyDescriptorPool — liberta TODOS os sets de uma vez (1 chamada)
- *
- * NOTA: chamar apenas quando a GPU não está a usar os recursos.
- * O factory garante isso com vkDeviceWaitIdle em PostFrameCleanup().
+ * Ordem:
+ *  1. join() — aguarda thread de decode
+ *  2. vkWaitForFences — se chunk em voo, aguarda GPU terminar
+ *  3. Liberta m_pending (pixels CPU)
+ *  4. DestroyFrame × N
+ *  5. vkDestroyDescriptorPool
+ *  6. vkDestroyDescriptorSetLayout
+ *  7. vkDestroyCommandPool (liberta m_upload_cmd automaticamente)
+ *  8. vkDestroyFence
+ *  9. Reset do estado
  */
 void GifAnimation::Unload()
 {
-    if(m_frames.empty() && m_desc_pool == VK_NULL_HANDLE)
-        return; // nada a libertar
+    if(m_decode_thread.joinable())
+        m_decode_thread.join();
+
+    const bool has_vk =
+        !m_frames.empty()                    ||
+        m_desc_pool       != VK_NULL_HANDLE  ||
+        m_desc_layout     != VK_NULL_HANDLE  ||
+        m_upload_cmd_pool != VK_NULL_HANDLE  ||
+        m_chunk_fence     != VK_NULL_HANDLE;
+
+    if(!has_vk)
+    {
+        std::lock_guard<std::mutex> lock(m_pending_mutex);
+        m_pending = PendingGif{};
+        m_total_frames  = 0;
+        m_frames_loaded = 0;
+        m_chunk_in_flight = false;
+        m_state.store(State::Idle);
+        return;
+    }
 
     VkDevice device = Memory::Get()->GetVulkan()->GetDevice();
 
-    // Liberta recursos de cada frame (sem o descriptor set)
+    // Se há chunk em voo, aguarda GPU antes de destruir recursos
+    if(m_chunk_in_flight && m_chunk_fence != VK_NULL_HANDLE)
+    {
+        constexpr uint64_t TIMEOUT_NS = 5'000'000'000ULL;
+        vkWaitForFences(device, 1, &m_chunk_fence, VK_TRUE, TIMEOUT_NS);
+        m_chunk_in_flight = false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_pending_mutex);
+        m_pending = PendingGif{};
+    }
+
     for(auto& frame : m_frames)
         DestroyFrame(device, frame);
 
     m_frames.clear();
     m_delays_ms.clear();
 
-    // Destrói o pool — liberta todos os VkDescriptorSet de uma vez
     if(m_desc_pool != VK_NULL_HANDLE)
     {
         vkDestroyDescriptorPool(device, m_desc_pool, nullptr);
         m_desc_pool = VK_NULL_HANDLE;
     }
 
-    // Destrói o layout — criado em Load(), já não é necessário
     if(m_desc_layout != VK_NULL_HANDLE)
     {
         vkDestroyDescriptorSetLayout(device, m_desc_layout, nullptr);
         m_desc_layout = VK_NULL_HANDLE;
     }
 
-    m_width         = 0;
-    m_height        = 0;
-    m_current_frame = 0;
-    m_elapsed_ms    = 0.0f;
-    m_paused        = false;
+    // Destrói o command pool — liberta m_upload_cmd automaticamente
+    if(m_upload_cmd_pool != VK_NULL_HANDLE)
+    {
+        vkDestroyCommandPool(device, m_upload_cmd_pool, nullptr);
+        m_upload_cmd_pool = VK_NULL_HANDLE;
+        m_upload_cmd      = VK_NULL_HANDLE;
+    }
+
+    if(m_chunk_fence != VK_NULL_HANDLE)
+    {
+        vkDestroyFence(device, m_chunk_fence, nullptr);
+        m_chunk_fence = VK_NULL_HANDLE;
+    }
+
+    m_width           = 0;
+    m_height          = 0;
+    m_current_frame   = 0;
+    m_elapsed_ms      = 0.0f;
+    m_paused          = false;
+    m_total_frames    = 0;
+    m_frames_loaded   = 0;
+    m_frames_decoded.store(0);   // reset streaming — novo GIF
+    m_chunk_begin     = 0;
+    m_chunk_end       = 0;
+    m_chunk_in_flight = false;
+    m_state.store(State::Idle);
 }
 
 // ============================================================================
@@ -754,28 +1038,32 @@ void GifAnimation::Unload()
 /**
  * @brief Avança o temporizador e muda de frame quando o delay expira.
  *
- * Loop while: necessário para saltar múltiplos frames se delta_ms for grande
- * (ex.: janela minimizada vários segundos — evita animação "em câmara lenta").
+ * Seguro durante Uploading — clampeia a m_frames_loaded - 1.
+ * Animação começa logo que o 1.º chunk é finalizado (HasAnyFrame()).
  *
- * @param delta_ms  Milissegundos desde o último Update() (DeltaTime * 1000).
+ * @param delta_ms  DeltaTime × 1000 (millisegundos).
  */
 void GifAnimation::Update(float delta_ms)
 {
-    if(m_paused || m_frames.size() <= 1)
+    if(m_paused || m_frames_loaded <= 1)
         return;
 
     m_elapsed_ms += delta_ms;
 
-    // Avança frames enquanto o tempo acumulado superar o delay actual
-    while(m_elapsed_ms >= static_cast<float>(
-              m_delays_ms[static_cast<std::size_t>(m_current_frame)]))
+    const int available = static_cast<int>(m_frames_loaded);
+
+    // Clamp defensivo — durante upload m_frames_loaded cresce a cada chunk
+    if(m_current_frame >= available)
+        m_current_frame = 0;
+
+    while(m_elapsed_ms >=
+          static_cast<float>(m_delays_ms[static_cast<std::size_t>(m_current_frame)]))
     {
-        // Desconta o delay do frame que terminou
         m_elapsed_ms -= static_cast<float>(
             m_delays_ms[static_cast<std::size_t>(m_current_frame)]);
 
-        // Avança para o próximo frame com wrap-around (loop infinito)
-        m_current_frame = (m_current_frame + 1) % static_cast<int>(m_frames.size());
+        // Wrap apenas nos frames já disponíveis
+        m_current_frame = (m_current_frame + 1) % available;
     }
 }
 
@@ -783,7 +1071,6 @@ void GifAnimation::Update(float delta_ms)
 // Reset
 // ============================================================================
 
-/** @brief Reinicia a animação no frame 0 sem libertar recursos. */
 void GifAnimation::Reset() noexcept
 {
     m_current_frame = 0;
@@ -795,19 +1082,17 @@ void GifAnimation::Reset() noexcept
 // ============================================================================
 
 /**
- * @brief Devolve o ImTextureID do frame activo.
- *
- * Se não houver frames, devolve ImTextureID{} (nulo).
- * ImGui::Image com ImTextureID{} não renderiza nada — sem crash.
+ * @brief ImTextureID do frame activo — passa directamente a ImGui::Image().
+ * Clampeia a m_frames_loaded durante upload progressivo.
  */
 ImTextureID GifAnimation::GetCurrentID() const noexcept
 {
-    if(m_frames.empty())
+    if(m_frames_loaded == 0)
         return ImTextureID{};
 
-    // Clamp defensivo — m_current_frame nunca deve sair do intervalo
-    const std::size_t idx =
-        static_cast<std::size_t>(m_current_frame) % m_frames.size();
+    const std::size_t available = m_frames_loaded;
+    const std::size_t idx       =
+        static_cast<std::size_t>(m_current_frame) % available;
 
     return m_frames[idx].GetID();
 }

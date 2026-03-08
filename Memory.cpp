@@ -106,10 +106,10 @@ font_scale_instance(nullptr),
 console_instance(nullptr),
 style_editor_instance(nullptr),
 menu_bar_instance(nullptr),
-app_settings_allocated(false),
-my_windows_allocated(false),
-vulkan_allocated(false),
-app_allocated(false),
+bApp_settings_allocated(false),
+bmy_windows_allocated(false),
+bvulkan_allocated(false),
+bapp_allocated(false),
 imgui_allocated(false),
 font_manager_allocated(false),
 font_scale_allocated(false),
@@ -147,6 +147,7 @@ const void Memory::Init() {
 									"Chame Memory::Shutdown() antes de chamar Init() novamente.");
 
 	s_instance = new Memory(); // construtor privado — alocação explícita em heap
+
 }
 
 /**
@@ -279,20 +280,20 @@ MyResult Memory::DestroyAll() {
 }
 
 MyResult Memory::AllocAppSettings() {
-	if (app_settings_allocated) return MR_BOTH_ERR_END_LOC("AppSettings já alocado, ignorando.");
+	if (bApp_settings_allocated) return MR_BOTH_ERR_END_LOC("AppSettings já alocado, ignorando.");
 
 	app_settings_instance = std::make_unique<AppSettings>();
 	if (!app_settings_instance) return MR_MSGBOX_ERR_LOC("Falha ao alocar AppSettings.");
 
-	app_settings_allocated = true;
+	bApp_settings_allocated = true;
 	return MyResult::ok;
 }
 
 MyResult Memory::DestroyAppSettings() {
-	if (!app_settings_allocated) return MyResult::ok;
+	if (!bApp_settings_allocated) return MyResult::ok;
 
 	app_settings_instance.reset(); // ~AppSettings()
-	app_settings_allocated = false;
+	bApp_settings_allocated = false;
 	return MyResult::ok;
 }
 // ============================================================================
@@ -307,7 +308,7 @@ MyResult Memory::DestroyAppSettings() {
  * Essencial em builds Debug para ver logs sem debugger anexado.
  */
 MyResult Memory::AllocWindowsConsole() {
-	if (windows_console_allocated)
+	if (bWindows_console_allocated)
 		return MR_BOTH_ERR_END_LOC("WindowsConsole já alocado, ignorando.");
 
 	windows_console_instance = std::make_unique<WindowsConsole>();
@@ -317,7 +318,7 @@ MyResult Memory::AllocWindowsConsole() {
 	if (!windows_console_instance->init())
 		return MR_MSGBOX_ERR_LOC("WindowsConsole::init() falhou.");
 
-	windows_console_allocated = true;
+	bWindows_console_allocated = true;
 	return MyResult::ok;
 }
 
@@ -325,11 +326,11 @@ MyResult Memory::AllocWindowsConsole() {
  * @brief Fecha o console Win32 e restaura os streams padrão.
  */
 MyResult Memory::DestroyWindowsConsole() {
-	if (!windows_console_allocated) return MyResult::ok;
+	if (!bWindows_console_allocated) return MyResult::ok;
 
 	windows_console_instance->shutdown(); // ::FreeConsole() + fecha os handles de stream
 	windows_console_instance.reset();	  // ~WindowsConsole()
-	windows_console_allocated = false;
+	bWindows_console_allocated = false;
 	return MyResult::ok;
 }
 
@@ -353,37 +354,11 @@ MyResult Memory::DestroyWindowsConsole() {
  *   imgui_impl_vulkan.cpp:1323  assert(info->ImageCount >= info->MinImageCount)
  */
 MyResult Memory::AllocVulkan() {
-	if (vulkan_allocated) return MR_BOTH_ERR_END_LOC("VulkanContext já alocado, ignorando.");
+	if (bvulkan_allocated) return MR_BOTH_ERR_END_LOC("VulkanContext já alocado, ignorando.");
 
 	if (!m_window)
 		return MR_MSGBOX_ERR_LOC("AllocVulkan() chamado sem janela. "
 								 "Chame AllocAll(window) — não AllocVulkan() diretamente.");
-
-	// ---- Detecção do monitor ----------------------------------------------
-
-	m_display_id = SDL_GetDisplayForWindow(m_window);
-	if (m_display_id == 0) {
-		// Janela pode não estar associada a um display antes de SDL_ShowWindow
-		m_display_id = SDL_GetPrimaryDisplay(); // fallback razoável
-		printf("[Memory] SDL_GetDisplayForWindow falhou — usando display primario.\n");
-	}
-
-	m_window_scale = SDL_GetDisplayContentScale(m_display_id);
-	if (m_window_scale <= 0.0f) m_window_scale = 1.0f; // 1.0 = 96 DPI (100% no Windows)
-
-	const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(m_display_id);
-	if (mode) {
-		m_display_w = mode->w; // largura do monitor em pixels (só para log)
-		m_display_h = mode->h; // altura do monitor em pixels (só para log)
-	}
-
-	printf("\n=== Monitor de Inicializacao ===\n");
-	printf("  Display ID:  %u\n", static_cast<unsigned>(m_display_id));
-	printf("  Resolucao:   %d x %d px\n", m_display_w, m_display_h);
-	printf("  Scale (DPI): %.2fx  (%.0f DPI)\n", m_window_scale,
-		   m_window_scale * 96.0f); // 96 DPI = escala 100%
-	printf("  Primario:    %s\n", (m_display_id == SDL_GetPrimaryDisplay()) ? "sim" : "nao");
-	printf("================================\n\n");
 
 	// ---- Tamanho da janela ------------------------------------------------
 
@@ -394,7 +369,7 @@ MyResult Memory::AllocVulkan() {
 
 	// SDL_Vulkan_GetInstanceExtensions retorna as extensões necessárias para
 	// criar a VkSurfaceKHR para esta janela (ex.: VK_KHR_win32_surface)
-	ImVector<const char *> extensions;
+	std::vector<const char *> extensions;
 	uint32_t			   n	   = 0;
 	const char *const	  *sdl_ext = SDL_Vulkan_GetInstanceExtensions(&n);
 	for (uint32_t i = 0; i < n; ++i)
@@ -413,7 +388,7 @@ MyResult Memory::AllocVulkan() {
 	if (!vulkan_instance->SetupWindow(m_window, w, h))
 		return MR_MSGBOX_ERR_LOC("VulkanContext::SetupWindow() falhou.");
 
-	vulkan_allocated = true;
+	bvulkan_allocated = true;
 	return MyResult::ok;
 }
 
@@ -421,12 +396,12 @@ MyResult Memory::AllocVulkan() {
  * @brief Destrói swapchain, surface, device e instance Vulkan nessa ordem.
  */
 MyResult Memory::DestroyVulkan() {
-	if (!vulkan_allocated) return MyResult::ok;
+	if (!bvulkan_allocated) return MyResult::ok;
 
 	vulkan_instance->CleanupWindow(); // VkSwapchainKHR + VkSurfaceKHR
 	vulkan_instance->Cleanup();		  // VkDevice + VkInstance
 	vulkan_instance.reset();
-	vulkan_allocated = false;
+	bvulkan_allocated = false;
 	return MyResult::ok;
 }
 
@@ -443,40 +418,40 @@ MyResult Memory::DestroyVulkan() {
  * App interno para conter sub-sistemas da aplicação.
  */
 MyResult Memory::AllocApp() {
-	if (app_allocated) return MR_BOTH_ERR_END_LOC("App já alocado, ignorando.");
+	if (bapp_allocated) return MR_BOTH_ERR_END_LOC("App já alocado, ignorando.");
 
 	app_instance = std::make_unique<App>();
 	if (!app_instance) return MR_MSGBOX_ERR_LOC("Falha ao alocar App.");
 
-	app_allocated = true;
+	bapp_allocated = true;
 	return MyResult::ok;
 }
 
 /** @brief Destrói o App interno. */
 MyResult Memory::DestroyApp() {
-	if (!app_allocated) return MyResult::ok;
+	if (!bapp_allocated) return MyResult::ok;
 
 	app_instance.reset(); // ~App()
-	app_allocated = false;
+	bapp_allocated = false;
 	return MyResult::ok;
 }
 
 MyResult Memory::AllocMyWindows() {
-	if (my_windows_allocated)
-		return MR_BOTH_ERR_END_LOC("my_windows_allocated já alocado, ignorando.");
+	if (bmy_windows_allocated)
+		return MR_BOTH_ERR_END_LOC("bmy_windows_allocated já alocado, ignorando.");
 
 	my_windows_instance = std::make_unique<MyWindows>();
 	if (!my_windows_instance) return MR_MSGBOX_ERR_LOC("Falha ao alocar MyWindows.");
 
-	my_windows_allocated = true;
+	bmy_windows_allocated = true;
 	return MyResult::ok;
 }
 
 MyResult Memory::DestroyMyWindows() {
-	if (!my_windows_allocated) return MyResult::ok;
+	if (!bmy_windows_allocated) return MyResult::ok;
 
 	my_windows_instance.reset(); // ~App()
-	my_windows_allocated = false;
+	bmy_windows_allocated = false;
 	return MyResult::ok;
 }
 
@@ -494,7 +469,7 @@ MyResult Memory::DestroyMyWindows() {
 MyResult Memory::AllocImGui() {
 	if (imgui_allocated) return MR_BOTH_ERR_END_LOC("ImGuiContext_Wrapper já alocado, ignorando.");
 
-	if (!vulkan_allocated)
+	if (!bvulkan_allocated)
 		return MR_MSGBOX_ERR_LOC("AllocImGui chamado antes de AllocVulkan. "
 								 "O swapchain precisa existir para ImGui_ImplVulkan_Init.");
 
@@ -702,7 +677,7 @@ MyResult Memory::DestroyImageViewerFactory() {
 
 /** @brief Retorna o WindowsConsole ou nullptr se não alocado. */
 WindowsConsole *Memory::GetWindowsConsole() {
-	if (!windows_console_allocated) {
+	if (!bWindows_console_allocated) {
 		MR_BOTH_ERR_END_LOC("GetWindowsConsole() chamado antes de AllocWindowsConsole().");
 		return nullptr;
 	}
@@ -711,7 +686,7 @@ WindowsConsole *Memory::GetWindowsConsole() {
 
 /** @brief Retorna o VulkanContext ou nullptr se não alocado. */
 VulkanContext *Memory::GetVulkan() {
-	if (!vulkan_allocated) {
+	if (!bvulkan_allocated) {
 		MR_BOTH_ERR_END_LOC("GetVulkan() chamado antes de AllocVulkan().");
 		return nullptr;
 	}
@@ -720,7 +695,7 @@ VulkanContext *Memory::GetVulkan() {
 
 /** @brief Retorna o App interno ou nullptr se não alocado. */
 App *Memory::GetApp() {
-	if (!app_allocated) {
+	if (!bapp_allocated) {
 		MR_BOTH_ERR_END_LOC("GetApp() chamado antes de AllocApp().");
 		return nullptr;
 	}
@@ -728,7 +703,7 @@ App *Memory::GetApp() {
 }
 
 MyWindows *Memory::GetMyWindows() {
-	if (!my_windows_allocated) {
+	if (!bmy_windows_allocated) {
 		MR_BOTH_ERR_END_LOC("GetMyWindows() chamado antes de AllocApp().");
 		return nullptr;
 	}
@@ -800,7 +775,7 @@ SDL_Window *Memory::GetWindow() const {
 }
 
 AppSettings *Memory::GetAppSettings() const {
-	if (!app_settings_allocated) {
+	if (!bApp_settings_allocated) {
 		MR_BOTH_ERR_END_LOC("GetAppSettings() chamado antes de AllocAppSettings().");
 		return nullptr;
 	}

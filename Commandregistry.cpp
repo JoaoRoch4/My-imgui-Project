@@ -40,6 +40,7 @@
 #include "MicaTheme.h"
 #include "VulkanContext_Wrapper.hpp"
 #include "ImGuiContext_Wrapper.hpp"
+#include "Memory.hpp"
 
 // ============================================================================
 // Construtor
@@ -187,13 +188,16 @@ void CommandRegistry::RegisterSystem() {
 
 	con->RegisterCommand(
 		L"SPECS", L"Exibe especificações de hardware (CPU, GPU, memória).",
-		[app, con]() { SystemInfo::Collect(app->g_Vulkan, L"Vulkan").PrintToConsole(con); });
+		[con]() { 
+		auto vk = Memory::Get()->GetVulkan();
+		SystemInfo::Collect(vk, L"Vulkan").PrintToConsole(con); });
 
 	// ---- VSYNC --------------------------------------------------------------
 
-	con->RegisterCommand(L"VSYNC", L"Liga ou desliga o VSync do swapchain Vulkan.", [app, con]() {
-		const bool novo = !app->g_Vulkan->GetVSync(); // inverte o estado atual
-		app->g_Vulkan->SetVSync(novo);
+	con->RegisterCommand(L"VSYNC", L"Liga ou desliga o VSync do swapchain Vulkan.", [con]() {
+		auto vk = Memory::Get()->GetVulkan();
+		const bool novo = !vk->GetVSync(); // inverte o estado atual
+		vk->SetVSync(novo);
 		con->AddLog(novo ? L"[green]VSync ON[/]" : L"[yellow]VSync OFF[/]");
 	});
 

@@ -15,7 +15,7 @@ public:
     ~VulkanContext();
 
     // Initialize Vulkan instance, physical device and logical device
-    bool Initialize(const ImVector<const char*>& instance_extensions);
+    bool Initialize(const std::vector<const char*>& instance_extensions);
 
     // Create window surface and swapchain
     bool SetupWindow(SDL_Window* window, int width, int height);
@@ -76,6 +76,6 @@ private:
 #endif
 
     static bool IsExtensionAvailable(
-        const ImVector<VkExtensionProperties>& properties,
+        const std::vector<VkExtensionProperties>& properties,
         const char* extension);
 };

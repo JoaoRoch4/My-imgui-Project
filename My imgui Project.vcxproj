@@ -108,7 +108,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>$(VC_IncludePath);$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\externalplutovg\\source;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ProjectDir)\external\implot3d;$(ProjectDir)\external\freetype\include;$(ProjectDir)\external\freetype\src;$(ProjectDir)\external\freetype\src\base;$(ProjectDir)\external\freetype\include\freetype\internal;$(ProjectDir)\external\freetype\include\freetype\internal\services;$(ProjectDir)\external\freetype\include\freetype\internal\config;$(ProjectDir)\external\dlg\include;$(ProjectDir)\external\dlg\src;$(ProjectDir)\external\json\single_include;$(ProjectDir)\external\termcolor\include\termcolor;$(ProjectDir)\external\fmt\include;$(ProjectDir)\external\renderdoc\renderdoc\api\app;D:\source\cpp\My imgui Project\stb;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>$(VC_IncludePath);$(ProjectDir)external\plutovg\include;$(ProjectDir)\external\implot;$(ProjectDir)\external\imgui-docking\backends;$(ProjectDir)\externalplutovg\\source;$(ProjectDir)\external\plutovg\include;$(ProjectDir)\\external\imgui_test_engine\imgui_test_suite;$(ProjectDir)\\external\imgui_test_engine\shared;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\Str;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\thirdparty\stb;$(ProjectDir)\\external\imgui_test_engine\imgui_test_engine\;$(ProjectDir)\\external\imgui_test_engine\;$(ProjectDir)\external\imgui_test_engine\app_minimal\;$(ProjectDir)\external\imgui-docking\;$(ProjectDir)\external\imgui-docking\misc\cpp\;$(ProjectDir)\external\imgui-docking\\misc\freetype\;$(ProjectDir)\external\plutovg\source;$(ProjectDir)\external\plutosvg\source;$(VULKAN_SDK)\Include\;$(ProjectDir)\external\implot3d;$(ProjectDir)\external\freetype\include;$(ProjectDir)\external\freetype\src;$(ProjectDir)\external\freetype\src\base;$(ProjectDir)\external\freetype\include\freetype\internal;$(ProjectDir)\external\freetype\include\freetype\internal\services;$(ProjectDir)\external\freetype\include\freetype\internal\config;$(ProjectDir)\external\dlg\include;$(ProjectDir)\external\dlg\src;$(ProjectDir)\external\json\single_include;$(ProjectDir)\external\termcolor\include\termcolor;$(ProjectDir)\external\fmt\include;$(ProjectDir)\external\renderdoc\renderdoc\api\app;D:\source\cpp\My imgui Project\stb;$(VK_SDK_PATH)\;$(VK_SDK_PATH)\include\;$(VK_SDK_PATH)\include\vulkan\;$(VK_SDK_PATH)\include\vulkan\utility;$(VK_SDK_PATH)\include\Volk;$(ExternalIncludePath)</ExternalIncludePath>
     <CodeAnalysisRuleSet>RULES.ruleset</CodeAnalysisRuleSet>
     <IncludePath>$(IncludePath)</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(VULKAN_SDK)\Bin;$(VULKAN_SDK)\lib;D:\source\cpp\My imgui Project\external\renderdoc\x64\Development</LibraryPath>
@@ -758,6 +758,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_context.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -768,6 +769,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_coroutine.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -778,6 +780,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_engine.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -788,6 +791,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_exporters.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -798,6 +802,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_perftool.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -808,6 +813,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_ui.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -818,6 +824,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_engine\imgui_te_utils.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -828,6 +835,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_core.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -862,6 +870,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_nav.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -872,6 +881,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_perf.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -882,6 +892,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_tables.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -892,6 +903,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_viewports.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -902,6 +914,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_widgets.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -912,6 +925,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_tests_widgets_inputtext.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -922,6 +936,7 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(DisableSpecificWarnings);4005</DisableSpecificWarnings>
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/analyze- %(AdditionalOptions)</AdditionalOptions>
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">TurnOffAllWarnings</WarningLevel>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="external\imgui_test_engine\imgui_test_suite\imgui_test_suite.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -1135,6 +1150,7 @@
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
     </ClCompile>
     <ClCompile Include="Gifanimation.cpp" />
+    <ClCompile Include="Gifdecoder.cpp" />
     <ClCompile Include="Image.cpp">
       <IncludeInUnityFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</IncludeInUnityFile>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
@@ -1187,7 +1203,6 @@
     <ClInclude Include="Commandregistry.hpp" />
     <ClInclude Include="Console.hpp" />
     <ClInclude Include="EmojiDebugHelper.h" />
-    <ClInclude Include="emojis.hpp" />
     <ClInclude Include="external\dlg\include\dlg\dlg.h" />
     <ClInclude Include="external\dlg\include\dlg\dlg.hpp" />
     <ClInclude Include="external\dlg\include\dlg\output.h" />
@@ -1341,6 +1356,7 @@
     <ClInclude Include="FontManager.hpp" />
     <ClInclude Include="Fontscale.hpp" />
     <ClInclude Include="Gifanimation.hpp" />
+    <ClInclude Include="Gifdecoder.hpp" />
     <ClInclude Include="Image.hpp" />
     <ClInclude Include="Imageviewerfactory.hpp" />
     <ClInclude Include="Imageviewerwindow.hpp" />

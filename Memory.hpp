@@ -78,6 +78,9 @@ class ImageViewerFactory;
  */
 class Memory {
 public:
+
+Memory() noexcept;
+	~Memory();
 	// -------------------------------------------------------------------------
 	// Controle explícito do singleton — chamados em wWinMain
 	// -------------------------------------------------------------------------
@@ -258,8 +261,7 @@ ImageViewerFactory* GetImageViewerFactory() const;
 
 private:
 	// Construtor/destrutor privados — apenas Init()/Shutdown() criam/destroem
-	Memory() noexcept;
-	~Memory();
+	
 
 	// Ponteiro estático — nullptr fora do intervalo Init()…Shutdown()
 	static Memory* s_instance; ///< Controlado exclusivamente por Init() e Shutdown()
@@ -284,11 +286,11 @@ private:
 	// Flags de estado — true somente após o Alloc correspondente ter sucedido
 	// -------------------------------------------------------------------------
 
-	bool app_settings_allocated;	///< true após AllocAppSettings()
-	bool windows_console_allocated; ///< true após AllocWindowsConsole()
-	bool vulkan_allocated;			///< true após AllocVulkan()
-	bool app_allocated;				///< true após AllocApp()
-	bool my_windows_allocated;		///< true após AllocMyWindows()
+	bool bApp_settings_allocated;	///< true após AllocAppSettings()
+	bool bWindows_console_allocated; ///< true após AllocWindowsConsole()
+	bool bvulkan_allocated;			///< true após AllocVulkan()
+	bool bapp_allocated;				///< true após AllocApp()
+	bool bmy_windows_allocated;		///< true após AllocMyWindows()
 	bool imgui_allocated;			///< true após AllocImGui()
 	bool font_manager_allocated;	///< true após AllocFontManager()
 	bool font_scale_allocated;		///< true após AllocFontScale()

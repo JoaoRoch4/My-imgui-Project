@@ -88,24 +88,21 @@ void MenuBar::DrawMenuFile() {
 
         if(ImGui::MenuItem("New"))  { /* TODO */ }
         if(ImGui::MenuItem("Open")) { /* TODO */ }
-		if (ImGui::MenuItem("New Picture")) {
-			ImGui::Begin("pic");
-			m_ImageViewerFactory->DrawOpenButton();
-			ImGui::End();
-		}
 
-
+        // Abre o explorador de ficheiros para seleccionar imagem(ns).
+        // OpenFileDialog() usa IFileOpenDialog com FOS_ALLOWMULTISELECT —
+        // suporta Ctrl+Clique para selecção múltipla.
+        if(ImGui::MenuItem("Abrir Imagem...", "Ctrl+O"))
+            m_ImageViewerFactory->OpenFileDialog();
 
         ImGui::Separator();
 
-        // Segundo parâmetro = atalho exibido à direita (apenas visual)
         if(ImGui::MenuItem("Exit", "Alt+F4"))
-            g_App->g_Done = true; // acessa membro público via g_App
+            g_App->g_Done = true;
 
         ImGui::EndMenu();
     }
 }
-
 // =============================================================================
 // DrawMenuEdit
 // =============================================================================

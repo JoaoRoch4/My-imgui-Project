@@ -460,8 +460,15 @@
     <ClCompile Include="Imageviewerwindow.cpp">
       <Filter>Local\src</Filter>
     </ClCompile>
-    <ClCompile Include="Imageviewerfactory.cpp" />
-    <ClCompile Include="Gifanimation.cpp" />
+    <ClCompile Include="Gifanimation.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Gifdecoder.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
+    <ClCompile Include="Imageviewerfactory.cpp">
+      <Filter>Local\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.hpp">
@@ -629,7 +636,6 @@
     <ClInclude Include="external\imgui_test_engine\shared\imgui_app.h">
       <Filter>external\test engine\inc</Filter>
     </ClInclude>
-    <ClInclude Include="imgui_user.h" />
     <ClInclude Include="external\freetype\include\freetype\config\ftmodule.h">
       <Filter>external\freetype\include\config</Filter>
     </ClInclude>
@@ -954,15 +960,24 @@
     <ClInclude Include="MyWindows.hpp">
       <Filter>Local\include</Filter>
     </ClInclude>
-    <ClInclude Include="emojis.hpp" />
     <ClInclude Include="Commandregistry.hpp">
       <Filter>Local\include</Filter>
     </ClInclude>
     <ClInclude Include="Imageviewerwindow.hpp">
       <Filter>Local\include</Filter>
     </ClInclude>
-    <ClInclude Include="Imageviewerfactory.hpp" />
-    <ClInclude Include="Gifanimation.hpp" />
+    <ClInclude Include="Gifanimation.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Imageviewerfactory.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui_user.h">
+      <Filter>Local\include</Filter>
+    </ClInclude>
+    <ClInclude Include="Gifdecoder.hpp">
+      <Filter>Local\include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="external\freetype\src\base\ftver.rc">

@@ -79,29 +79,6 @@ public:
     /** @brief Atribui g_App = this e chama InitRenderDoc(). */
     void Startup();
 
-    RENDERDOC_API_1_1_2* rdoc_api = NULL; ///< API do RenderDoc — nullptr se não injetado
-
-    /** @brief Inicializa a API do RenderDoc se a DLL estiver injetada no processo. */
-    void InitRenderDoc() {
-        if(HMODULE mod = GetModuleHandleA("renderdoc.dll")) {
-            pRENDERDOC_GetAPI RENDERDOC_GetAPI =
-                std::bit_cast<pRENDERDOC_GetAPI>(GetProcAddress(mod, "RENDERDOC_GetAPI"));
-            const int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2,
-                std::bit_cast<void**>(&rdoc_api));
-            if(ret != 1) rdoc_api = NULL;
-        }
-    }
-
-    /** @brief Inicia e encerra uma captura de frame do RenderDoc. */
-    void CaptureFrame() {
-        if(rdoc_api) {
-            rdoc_api->StartFrameCapture(NULL, NULL);
-            rdoc_api->EndFrameCapture(NULL, NULL);
-            if(!rdoc_api->IsTargetControlConnected())
-                rdoc_api->LaunchReplayUI(1, "");
-        }
-    }
-
     // =========================================================================
     // Ponto de entrada
     // =========================================================================
@@ -238,7 +215,7 @@ public:
 
     MyResult AllocGlobals();
     MyResult AllocImages();
-    void     Close();
+    MyResult     Close();
     MyResult RegisterCommands();
     MyResult MainLoop();
     MyResult GetDesktopResolution(int& horizontal, int& vertical);
