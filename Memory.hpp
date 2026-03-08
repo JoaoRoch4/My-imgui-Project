@@ -15,6 +15,8 @@ class StyleEditor;
 class MenuBar;
 class WindowsConsole;
 class ImageViewerFactory;
+class InitArgs;
+class OnlineClock;
 
 /**
  * @brief Singleton que centraliza o ciclo de vida de todos os recursos da aplicação.
@@ -78,8 +80,7 @@ class ImageViewerFactory;
  */
 class Memory {
 public:
-
-Memory() noexcept;
+	Memory() noexcept;
 	~Memory();
 	// -------------------------------------------------------------------------
 	// Controle explícito do singleton — chamados em wWinMain
@@ -207,6 +208,8 @@ Memory() noexcept;
 	MyResult AllocFontManager();
 	MyResult DestroyFontManager(); ///< Libera o FontManager.
 
+	MyResult AllocOnlineClock();
+	MyResult DestroyOnlineClock();
 	/**
 	 * @brief Inicializa o FontScale (escala de fontes por DPI).
 	 * Deve ser chamado após AllocFontManager().
@@ -228,6 +231,11 @@ Memory() noexcept;
 	MyResult AllocStyleEditor();
 	MyResult DestroyStyleEditor(); ///< Destrói o StyleEditor.
 
+
+	MyResult AllocInitArgs(LPWSTR lp_cmd_line);
+    MyResult DestroyInitArgs(); ///< Destrói o InitArgs.
+
+
 	/**
 	 * @brief Constrói a MenuBar principal da aplicação.
 	 * DEVE ser chamado após AllocImGui() — depende do contexto ImGui ativo.
@@ -235,7 +243,7 @@ Memory() noexcept;
 	MyResult AllocMenuBar();
 	MyResult DestroyMenuBar(); ///< Destrói a MenuBar.
 
-	MyResult AllocImageViewerFactory(); 
+	MyResult AllocImageViewerFactory();
 	MyResult DestroyImageViewerFactory();
 	// -------------------------------------------------------------------------
 	// Getters — retornam nullptr se o recurso correspondente não foi alocado
@@ -251,17 +259,15 @@ Memory() noexcept;
 	Console*			  GetConsole();		   ///< nullptr se não alocado
 	StyleEditor*		  GetStyleEditor();	   ///< nullptr se não alocado
 	MenuBar*			  GetMenuBar();		   ///< nullptr se não alocado
-
-
-
-	/** @brief Retorna a SDL_Window* armazenada em AllocAll(). nullptr antes disso. */
-	SDL_Window*	 GetWindow() const;
-	AppSettings* GetAppSettings() const; ///< Atalho para GetApp()->GetAppSettings()
-ImageViewerFactory* GetImageViewerFactory() const;
+	InitArgs*			  GetInitArgs() const;
+	SDL_Window*			  GetWindow() const;
+	AppSettings*		  GetAppSettings() const; ///< Atalho para GetApp()->GetAppSettings()
+	ImageViewerFactory*	  GetImageViewerFactory() const;
+	OnlineClock* GetOnlineClock() const;
 
 private:
 	// Construtor/destrutor privados — apenas Init()/Shutdown() criam/destroem
-	
+
 
 	// Ponteiro estático — nullptr fora do intervalo Init()…Shutdown()
 	static Memory* s_instance; ///< Controlado exclusivamente por Init() e Shutdown()
@@ -280,24 +286,28 @@ private:
 	std::unique_ptr<Console>			  console_instance;
 	std::unique_ptr<StyleEditor>		  style_editor_instance;
 	std::unique_ptr<MenuBar>			  menu_bar_instance;
-	std::unique_ptr<ImageViewerFactory> ImageViewerFactory_instance;
+	std::unique_ptr<ImageViewerFactory>	  ImageViewerFactory_instance;
+	    std::unique_ptr<InitArgs> init_args_instance;
+		std::unique_ptr<OnlineClock> OnlineClock_instance;
 
 	// -------------------------------------------------------------------------
 	// Flags de estado — true somente após o Alloc correspondente ter sucedido
 	// -------------------------------------------------------------------------
 
-	bool bApp_settings_allocated;	///< true após AllocAppSettings()
+	bool bApp_settings_allocated;	 ///< true após AllocAppSettings()
 	bool bWindows_console_allocated; ///< true após AllocWindowsConsole()
-	bool bvulkan_allocated;			///< true após AllocVulkan()
-	bool bapp_allocated;				///< true após AllocApp()
-	bool bmy_windows_allocated;		///< true após AllocMyWindows()
-	bool imgui_allocated;			///< true após AllocImGui()
-	bool font_manager_allocated;	///< true após AllocFontManager()
-	bool font_scale_allocated;		///< true após AllocFontScale()
-	bool console_allocated;			///< true após AllocConsole()
-	bool style_editor_allocated;	///< true após AllocStyleEditor()
-	bool menu_bar_allocated;		///< true após AllocMenuBar()
+	bool bvulkan_allocated;			 ///< true após AllocVulkan()
+	bool bapp_allocated;			 ///< true após AllocApp()
+	bool bmy_windows_allocated;		 ///< true após AllocMyWindows()
+	bool imgui_allocated;			 ///< true após AllocImGui()
+	bool font_manager_allocated;	 ///< true após AllocFontManager()
+	bool font_scale_allocated;		 ///< true após AllocFontScale()
+	bool console_allocated;			 ///< true após AllocConsole()
+	bool style_editor_allocated;	 ///< true após AllocStyleEditor()
+	bool menu_bar_allocated;		 ///< true após AllocMenuBar()
 	bool ImageViewerFactory_allocated;
+	bool OnlineClock_allocated;
+	bool init_args_allocated;
 
 	// -------------------------------------------------------------------------
 	// Janela e dados do monitor — detectados em AllocVulkan()

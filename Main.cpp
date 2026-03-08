@@ -93,36 +93,45 @@ int main(int argc, char *argv[]) {
  * @param nCmdShow       Estado inicial da janela sugerido pelo shell.
  * @return EXIT_SUCCESS ou EXIT_FAILURE.
  */
-_Use_decl_annotations_ INT  WINAPI  wWinMain(
+_Use_decl_annotations_ INT WINAPI wWinMain(
     _In_     HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_     LPWSTR    lpCmdLine,
-    _In_     int       nCmdShow) {
-
+    _In_     int       nCmdShow)
+{
     (hInstance);
     (hPrevInstance);
-    (lpCmdLine);
     (nCmdShow);
 
-    // ---- 1. Memory::AllocAll — todos os subsistemas na ordem correta --------
+    // 1. Singleton em heap — primeiro de tudo
+    Memory::Init();
 
-  Memory::Init(); 
-	
-  // Console externo Win32 inicializado ANTES de App para capturar
-  // todos os logs de inicialização do Vulkan, ImGui e FontManager.
-  WindowsConsole::init(VK_F1); // F1 abre/fecha o console externo
-  std::cout <<  termcolor::blue << "Console externo inicializado. Pressione F1 para abrir/fechar. João André" << termcolor::reset << std::endl;
-  Memory* mem = Memory::Get();
-	mem->AllocApp(); 
- App* app = mem->GetApp();
- app->Startup();
-app->run();              // construtor: g_App = this
-  // Shutdown após run() — Close() já liberou todos os recursos.
-  WindowsConsole::shutdown();
+    // 2. Parseia lpCmdLine ANTES de qualquer AllocXxx().
+    //    Os argumentos ficam disponíveis durante toda a inicialização.
+    //    Exemplo de uso posterior:
+    //      Memory::Get()->GetInitArgs()->HasFlag(L"--noviewports")
+    Memory::Get()->AllocInitArgs(lpCmdLine); // ← LINHA NOVA
 
-SDL_DestroyWindow(app->g_Window); //       → janela destruída APÓS Vulkan
-app->Close();
-app = nullptr;
-Memory::Get()->DestroyAll(); //  → destrói Vulkan usando g_Window aindaido
-Memory::Shutdown(); //           → delete Memory
+    // 3. Console externo Win32
+    WindowsConsole::init(VK_F1);
+    std::cout << termcolor::blue
+              << "Console inicializado. F1 para abrir/fechar."
+              << termcolor::reset << std::endl;
+
+    // 4. App + loop principal
+    Memory* mem = Memory::Get();
+    mem->AllocApp();
+    App* app = mem->GetApp();
+    app->Startup();
+    app->run();
+
+    // 5. Shutdown na ordem inversa
+    WindowsConsole::shutdown();
+    SDL_DestroyWindow(app->g_Window);
+    app->Close();
+    app = nullptr;
+
+    Memory::Get()->DestroyAll(); // chama DestroyInitArgs() internamente
+    Memory::Shutdown();
 }
+

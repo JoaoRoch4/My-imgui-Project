@@ -35,6 +35,7 @@ private:
     class App* g_App;
     class AppSettings* g_Settings; ///< Configurações persistidas — dono: Memory singleton
     class ImageViewerFactory* m_ImageViewerFactory;
+    class OnlineClock* clock;
 
     bool m_ShowAbout; ///< Flag interna: true = abrir popup "Sobre" neste frame
 
@@ -44,4 +45,5 @@ private:
     void DrawMenuHelp();            ///< Help  > Comandos | Sobre...
     void DrawFpsCounter(float fps); ///< FPS alinhado à direita da barra
     void DrawAboutPopup();          ///< Popup modal — FORA do BeginMainMenuBar
+	void DrawClock();
 };

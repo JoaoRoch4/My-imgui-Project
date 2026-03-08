@@ -266,6 +266,10 @@
 #include <sal.h>
 #include <stringapiset.h>
 #include <winioctl.h>
+#include <shellapi.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
 
 // --- CRT / Runtime ---
 #include <corecrt.h>		// _countof, _vsnprintf_s, _vscprintf
@@ -280,6 +284,9 @@
 // --- Shell / COM ---
 #include <shobjidl.h>	// IFileOpenDialog, IShellItemArray, IShellItem
 #include <combaseapi.h> // CoInitializeEx, CoUninitialize
+#include <consoleapi.h>
+#include <consoleapi2.h>
+#include <consoleapi3.h>
 
 // --- Bibliotecas ---
 #pragma comment(lib, "winmm.lib")
@@ -293,6 +300,9 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
 #pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "ws2_32.lib")
+
+
 
 // --- WinRT (C++/WinRT) ---
 #if USE_WINRT

@@ -705,6 +705,21 @@ void Console::AddLog(const wchar_t* fmt, ...) {
 	Items.push_back(Wcsdup(buf)); // duplica no heap e armazena
 }
 
+void Console::AddLogSys(const wchar_t* fmt, ...) {
+
+wchar_t buf[1024]; // buffer wide de stack para o texto formatado
+	va_list args;
+
+	va_start(args, fmt);
+	vswprintf(buf, IM_COUNTOF(buf), fmt, args); // vprintf wide-char seguro
+	buf[IM_COUNTOF(buf) - 1] = L'\0';			// garante terminação NUL wide
+	va_end(args);
+
+	Items.push_back(Wcsdup(buf)); // duplica no heap e armazena
+
+	std::wcout << Wcsdup(buf);
+}
+
 // ============================================================================
 // Escala de fonte exclusiva do console
 // ============================================================================

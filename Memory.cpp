@@ -72,6 +72,8 @@
 #include "VulkanContext_Wrapper.hpp"
 #include "WindowsConsole.hpp"
 #include "Imageviewerfactory.hpp"
+#include "InitArgs.hpp"
+#include "OnlineClock.hpp"
 
 // ============================================================================
 // Definição do ponteiro estático
@@ -105,6 +107,8 @@ font_manager_instance(nullptr),
 font_scale_instance(nullptr),
 console_instance(nullptr),
 style_editor_instance(nullptr),
+init_args_allocated(false),
+OnlineClock_instance(nullptr),
 menu_bar_instance(nullptr),
 bApp_settings_allocated(false),
 bmy_windows_allocated(false),
@@ -116,6 +120,7 @@ font_scale_allocated(false),
 console_allocated(false),
 style_editor_allocated(false),
 menu_bar_allocated(false),
+OnlineClock_allocated(false),
 m_window(nullptr),
 m_window_scale(1.f),
 m_display_id(0),
@@ -236,6 +241,8 @@ MyResult Memory::AllocAll(SDL_Window *window) {
 	if (!MR_IS_OK(AllocAppSettings()))
 		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocAppSettings");
 
+		if (!MR_IS_OK(AllocOnlineClock()))
+		return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocAppSettings");
 	// 9. MenuBar: registra itens de menu; requer contexto ImGui ativo
 	if (!MR_IS_OK(AllocMenuBar())) return MR_BOTH_ERR_END_LOC("AllocAll: falhou em AllocMenuBar");
 
@@ -273,7 +280,9 @@ MyResult Memory::DestroyAll() {
 	DestroyMyWindows();		 // 4.5 → MyWindows é usado por ImGui e App: antes do ImGui e do App
 	DestroyApp();			 // 3 → pode usar Vulkan: antes do Vulkan
 	DestroyVulkan();		 // 2 → device + instance: quase o último
+	DestroyOnlineClock();
 	DestroyWindowsConsole(); // 1 → último: printf() funciona até aqui
+	DestroyInitArgs();
 	DestroyAppSettings();
 	m_window = nullptr; // limpa a referência; janela já destruída por App::Run()
 	return MyResult::ok;
@@ -321,6 +330,53 @@ MyResult Memory::AllocWindowsConsole() {
 	bWindows_console_allocated = true;
 	return MyResult::ok;
 }
+
+MyResult Memory::AllocInitArgs(LPWSTR lp_cmd_line)
+{
+    // Protege contra chamadas duplicadas — padrão de todos os AllocXxx()
+    if(init_args_allocated)
+        return MR_BOTH_ERR_END_LOC("InitArgs já alocado, ignorando.");
+
+    // Constrói a instância — sem new explícito (RAII via unique_ptr)
+    init_args_instance = std::make_unique<InitArgs>();
+
+    // make_unique nunca devolve nullptr em MSVC (lança std::bad_alloc em falha)
+    // O if é uma rede de segurança extra consistente com os outros AllocXxx()
+    if(!init_args_instance)
+        return MR_MSGBOX_ERR_LOC("Falha ao alocar InitArgs.");
+
+    // Parseia lpCmdLine via CommandLineToArgvW (Shell32)
+    // Seguro com nullptr — Init() trata o caso e deixa m_args vazio
+    init_args_instance->Init(lp_cmd_line);
+
+    // Marca como alocado — GetInitArgs() e DestroyInitArgs() verificam esta flag
+    init_args_allocated = true;
+
+    return MyResult::ok;
+}
+
+/**
+ * @brief Destrói o InitArgs e liberta a memória das wstrings.
+ *
+ * Chamado por DestroyAll() ou directamente se necessário.
+ * Seguro chamar mesmo que AllocInitArgs() não tenha sido chamado.
+ */
+MyResult Memory::DestroyInitArgs()
+{
+    // Flag falsa → nada a destruir — retorna ok sem log de erro
+    if(!init_args_allocated)
+        return MyResult::ok;
+
+    // unique_ptr::reset() chama ~InitArgs() que destrói vector<wstring>
+    // Todas as wstrings são libertadas aqui (RAII)
+    init_args_instance.reset();
+
+    // Marca como não alocado — chamadas subsequentes a GetInitArgs() retornam nullptr
+    init_args_allocated = false;
+
+    return MyResult::ok;
+}
+
 
 /**
  * @brief Fecha o console Win32 e restaura os streams padrão.
@@ -515,7 +571,7 @@ MyResult Memory::AllocFontManager() {
 
 	// 13.0f é o tamanho base em pontos; * m_window_scale = pixels físicos
 	// corretos
-	bool emoji_ok = font_manager_instance->LoadAllFontsWithEmoji(13.0f * m_window_scale);
+	const bool emoji_ok = font_manager_instance->LoadAllFontsWithEmoji(13.0f * m_window_scale);
 
 	printf("\n=== Font Status ===\n");
 	printf("Fonts loaded: %d\n", font_manager_instance->GetFontCount());
@@ -534,6 +590,21 @@ MyResult Memory::DestroyFontManager() {
 	font_manager_allocated = false;
 	return MyResult::ok;
 }
+
+MyResult Memory::AllocOnlineClock() { if (OnlineClock_allocated)
+		return MR_BOTH_ERR_END_LOC("OnlineClock já alocado, ignorando.");
+
+	OnlineClock_instance = std::make_unique<OnlineClock>();
+	if (!OnlineClock_instance) return MR_MSGBOX_ERR_LOC("Falha ao alocar OnlineClock.");
+
+	OnlineClock_allocated = true;
+	return MyResult::ok; }
+
+MyResult Memory::DestroyOnlineClock() { if (!OnlineClock_allocated) return MyResult::ok;
+
+	OnlineClock_instance.reset();
+	OnlineClock_allocated = false;
+	return MyResult::ok; }
 
 // ============================================================================
 // FontScale
@@ -746,6 +817,20 @@ Console *Memory::GetConsole() {
 	return console_instance.get();
 }
 
+InitArgs* Memory::GetInitArgs() const
+{
+    // Log de aviso se chamado antes de AllocInitArgs()
+    if(!init_args_allocated)
+    {
+        MR_BOTH_ERR_END_LOC("GetInitArgs() chamado antes de AllocInitArgs().");
+        return nullptr;
+    }
+
+    // get() devolve o ponteiro raw — a posse permanece no unique_ptr
+    return init_args_instance.get();
+}
+
+
 /** @brief Retorna o StyleEditor ou nullptr se não alocado. */
 StyleEditor *Memory::GetStyleEditor() {
 	if (!style_editor_allocated) {
@@ -789,3 +874,11 @@ ImageViewerFactory *Memory::GetImageViewerFactory() const {
 	}
 	return ImageViewerFactory_instance.get();
 }
+
+OnlineClock *Memory::GetOnlineClock() const { 	
+if (!OnlineClock_allocated) {
+		MR_BOTH_ERR_END_LOC("OnlineClock_allocated not allocated.");
+		return nullptr;
+	}
+	return OnlineClock_instance.get();
+	}

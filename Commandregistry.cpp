@@ -225,13 +225,13 @@ void CommandRegistry::RegisterSystem() {
 		[con](std::vector<std::wstring> args) {
 			// ---- Sem argumentos → ajuda --------------------------------------
 			if (args.empty()) {
-				con->AddLog(L"[yellow]Uso:[/] system [comando] [argumentos...]");
-				con->AddLog(L"[gray]Exemplos:[/]");
-				con->AddLog(L"[gray]  system dir[/]");
-				con->AddLog(L"[gray]  system dir /b[/]");
-				con->AddLog(L"[gray]  system ipconfig[/]");
-				con->AddLog(L"[gray]  system echo hello world[/]");
-				con->AddLog(L"[gray]Dica: adicione 2>&1 ao final para capturar stderr.[/]");
+				con->AddLogSys(L"[yellow]Uso:[/] system [comando] [argumentos...]\n");
+				con->AddLogSys(L"[gray]Exemplos:[/]\n");
+				con->AddLogSys(L"[gray]  system dir[/]\n");
+				con->AddLogSys(L"[gray]  system dir /b[/]\n");
+				con->AddLogSys(L"[gray]  system ipconfig[/]\n");
+				con->AddLogSys(L"[gray]  system echo hello world[/]\n");
+				con->AddLogSys(L"[gray]Dica: adicione 2>&1 ao final para capturar stderr.[/]\n");
 				return;
 			}
 
@@ -297,6 +297,12 @@ void CommandRegistry::RegisterSystem() {
 
 			con->AddLog(L"[gray]--- fim ---[/]"); // marca o fim da saída capturada
 		});
+
+		con->RegisterCommand(
+		L"echo", L"Executa um comando do CMD e exibe a saída aqui. Uso: system [cmd]",
+		[con](std::vector<std::wstring> args) {
+			
+			});
 }
 
 // ============================================================================

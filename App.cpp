@@ -38,7 +38,6 @@
 #include "FontScale.hpp" // FontScale::ProcessEvent, SetSize, ResetToDefault
 #include "MyWindows.hpp"
 #include "MyResult.hpp"
-#include "emojis.hpp"
 #include "Commandregistry.hpp"
 
 // =============================================================================

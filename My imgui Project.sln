@@ -11,6 +11,8 @@ Global
 		Debug|x86 = Debug|x86
 		Debug-Profile|x64 = Debug-Profile|x64
 		Debug-Profile|x86 = Debug-Profile|x86
+		maximum-optimization|x64 = maximum-optimization|x64
+		maximum-optimization|x86 = maximum-optimization|x86
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
@@ -23,6 +25,10 @@ Global
 		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.Debug-Profile|x64.Build.0 = Debug-Profile|x64
 		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.Debug-Profile|x86.ActiveCfg = Debug-Profile|Win32
 		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.Debug-Profile|x86.Build.0 = Debug-Profile|Win32
+		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.maximum-optimization|x64.ActiveCfg = maximum-optimization|x64
+		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.maximum-optimization|x64.Build.0 = maximum-optimization|x64
+		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.maximum-optimization|x86.ActiveCfg = maximum-optimization|Win32
+		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.maximum-optimization|x86.Build.0 = maximum-optimization|Win32
 		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.Release|x64.ActiveCfg = Release|x64
 		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.Release|x64.Build.0 = Release|x64
 		{7F5F4585-290D-42E9-9C36-6A76A5AFCBD0}.Release|x86.ActiveCfg = Release|Win32

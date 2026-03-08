@@ -469,6 +469,8 @@
     <ClCompile Include="Imageviewerfactory.cpp">
       <Filter>Local\src</Filter>
     </ClCompile>
+    <ClCompile Include="InitArgs.cpp" />
+    <ClCompile Include="OnlineClock.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.hpp">
@@ -978,6 +980,8 @@
     <ClInclude Include="Gifdecoder.hpp">
       <Filter>Local\include</Filter>
     </ClInclude>
+    <ClInclude Include="InitArgs.hpp" />
+    <ClInclude Include="OnlineClock.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="external\freetype\src\base\ftver.rc">

@@ -28,6 +28,7 @@
 #include "Console.hpp"   // ← para g_App->g_Console->AddLog()
 #include "Memory.hpp"
 #include "Imageviewerfactory.hpp"
+#include "OnlineClock.hpp"
 
 // =============================================================================
 // Construtor
@@ -58,6 +59,8 @@ void MenuBar::Draw() {
 	g_App = Memory::Get()->GetApp();
         g_Settings = Memory::Get()->GetAppSettings();
 	m_ImageViewerFactory = Memory::Get()->GetImageViewerFactory();
+        clock = Memory::Get()->GetOnlineClock();
+
 
     if(ImGui::BeginMainMenuBar()) {
 
@@ -65,10 +68,10 @@ void MenuBar::Draw() {
         DrawMenuEdit();                           // Edit
         DrawMenuView();                           // View
         DrawMenuHelp();                           // Help
-        //DrawFpsCounter(ImGui::GetIO().Framerate); // FPS à direita
-
+        DrawFpsCounter(ImGui::GetIO().Framerate); // FPS à direita
         ImGui::EndMainMenuBar();
     }
+          
 
     DrawAboutPopup(); // FORA do BeginMainMenuBar — ver doc no topo do arquivo
 }
@@ -211,14 +214,14 @@ void MenuBar::DrawFpsCounter(float fps) {
     // Exemplo: Diminuir um pouco o tamanho da fonte apenas para o FPS
     // ImGui::PushFont(ImGui::GetFont(), 13.0f); 
 
-    float text_w = ImGui::CalcTextSize(buf).x;
-    #undef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-    float bar_w  = ImGui::GetCursorScreenPos().x;
-#define IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-    ImGui::SetCursorPosX(bar_w - text_w - 8.0f);
+   float largura = ImGui::CalcTextSize(buf).x;
+        
+        // Empurra para a direita
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - largura - 100.f);
     ImGui::TextDisabled("%s", buf);
 
-    // ImGui::PopFont();
+    //ImGui::PopFont();
+      DrawClock();
 }
 // =============================================================================
 // DrawAboutPopup
@@ -254,4 +257,21 @@ void MenuBar::DrawAboutPopup() {
 
         ImGui::EndPopup();
     }
+}
+
+void MenuBar::DrawClock() {
+    
+    char buf[32];
+    // Sincroniza em uma thread separada para não travar a UI no início
+    if (!clock->m_sincronizado) {
+        std::thread([this]() { clock->sincronizar(); }).detach();
+        clock->m_sincronizado = true;
+    }
+
+   
+const std::string h = clock->obterDataHoraFormatada();
+       
+       ImGui::SameLine();
+ ImGui::TextDisabled("   H:%s", h.c_str());
+    
 }

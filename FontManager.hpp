@@ -71,6 +71,30 @@ public:
     bool    HasEmojiFont()   const { return m_emoji_font != nullptr; }
     const std::string& GetFolderPath() const { return m_folder_path; }
 
+     /**
+     * @brief Empurra uma fonte pelo nome para a pilha de fontes do ImGui.
+     *
+     * Procura em m_Fonts a primeira entrada cujo FontInfo::name contenha
+     * font_name (comparação case-insensitive). Se encontrada, chama
+     * ImGui::PushFont() com o ImFont* correspondente.
+     *
+     * Deve ser emparelhado com PopFont() — exactamente como ImGui::PushFont.
+     *
+     * @param font_name  Substring do nome da fonte (ex: "Roboto", "OpenSans").
+     * @return           true se a fonte foi encontrada e empurrada;
+     *                   false se não foi encontrada (nenhum PushFont é feito).
+     */
+    bool PushFontByName(const std::string& font_name);
+
+    /**
+     * @brief Retira a fonte do topo da pilha do ImGui.
+     *
+     * Wrapper directo de ImGui::PopFont() — disponível aqui para simetria
+     * com PushFontByName() e para centralizar a lógica de font switching
+     * no FontManager.
+     */
+    void PopFont();
+
 private:
     struct FontInfo {
         ImFont* font;

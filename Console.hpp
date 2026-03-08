@@ -176,6 +176,7 @@ public:
      * @param fmt  String de formato wide, ex.: L"Valor: %d  Emoji: %ls".
      */
     void AddLog(const wchar_t* fmt, ...);
+    void AddLogSys(const wchar_t* fmt, ...);
 
     /**
      * @brief Adiciona uma linha de log prefixada com um emoji wide-char.
