@@ -370,3 +370,4 @@ FodyWeavers.xsd
 /vcpkg_installed/x64-windows-static-md
 /vcpkg_installed/x64-windows-static
 /vcpkg_installed/x64-windows
+/external/VulkanRT-X64-1.4.341.0-Components
